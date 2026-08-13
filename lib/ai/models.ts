@@ -10,9 +10,12 @@
 
 import { google } from '@ai-sdk/google'
 
-/** Fast, free-tier model — discovery chat + structured analysis. */
-export const CONVERSATION_MODEL = google('gemini-2.0-flash')
-export const ANALYSIS_MODEL = google('gemini-2.0-flash')
+/** Default model — override with GEMINI_MODEL in .env.local if needed. */
+const MODEL_ID = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash'
+
+/** Fast model for discovery chat + structured analysis. */
+export const CONVERSATION_MODEL = google(MODEL_ID)
+export const ANALYSIS_MODEL = google(MODEL_ID)
 
 export const SKILZ_ACCURACY_RULES = `Accuracy rules (always follow):
 - Only infer skills from concrete behaviors, stories, or examples the person shared.

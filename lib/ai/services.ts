@@ -162,6 +162,7 @@ export const AIConversationService = {
           if (!line.trim()) continue
           const event = JSON.parse(line) as
             | { type: 'token'; text: string }
+            | { type: 'error'; error: string }
             | {
                 type: 'done'
                 reply: string
@@ -173,6 +174,9 @@ export const AIConversationService = {
             if (!started) started = true
             fullReply += event.text
             callbacks.onToken(event.text, fullReply)
+          } else if (event.type === 'error') {
+            callbacks.onError(new Error(event.error))
+            return
           } else if (event.type === 'done') {
             callbacks.onDone({
               reply: event.reply || fullReply.trim(),

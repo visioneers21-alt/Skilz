@@ -53,6 +53,7 @@ This is user turn ${userTurns}. Aim for ${MIN_USER_EXCHANGES} meaningful exchang
 
 export type DiscoverStreamEvent =
   | { type: 'token'; text: string }
+  | { type: 'error'; error: string }
   | {
       type: 'done'
       reply: string
@@ -77,14 +78,40 @@ export async function createDiscoverStream(body: unknown): Promise<{
   }))
   const userTurns = normalizedMessages.filter((m) => m.role === 'user').length
   const eligibility = assessTranscriptEligibility(normalizedMessages)
-
-  const result = streamText({
-    model: CONVERSATION_MODEL,
-    instructions: buildInstructions(profile, userTurns),
-    messages: normalizedMessages,
-  })
+  const isOpeningTurn = normalizedMessages.length === 0
 
   const encoder = new TextEncoder()
+
+  const errorStream = (message: string) =>
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode(`${JSON.stringify({ type: 'error', error: message })}\n`),
+        )
+        controller.close()
+      },
+    })
+
+  let result: Awaited<ReturnType<typeof streamText>>
+  try {
+    result = streamText({
+      model: CONVERSATION_MODEL,
+      instructions: buildInstructions(profile, userTurns),
+      ...(isOpeningTurn
+        ? {
+            prompt:
+              'Begin the discovery session. Give a brief warm greeting and ask your first thoughtful question.',
+          }
+        : { messages: normalizedMessages }),
+    })
+  } catch (err) {
+    console.error('[skilz] discover stream setup error:', err)
+    return {
+      stream: errorStream('SKILZ is unavailable right now.'),
+      userTurns,
+      eligibility,
+    }
+  }
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -99,6 +126,15 @@ export async function createDiscoverStream(body: unknown): Promise<{
           push({ type: 'token', text: chunk })
         }
 
+        if (!reply.trim()) {
+          push({
+            type: 'error',
+            error: 'SKILZ is unavailable right now. Check your API key and model settings.',
+          })
+          controller.close()
+          return
+        }
+
         const readyToConclude =
           (userTurns >= MIN_USER_EXCHANGES && eligibility.eligible) || userTurns >= 8
 
@@ -111,7 +147,11 @@ export async function createDiscoverStream(body: unknown): Promise<{
         controller.close()
       } catch (err) {
         console.error('[skilz] discover stream error:', err)
-        controller.error(err)
+        push({
+          type: 'error',
+          error: 'SKILZ is unavailable right now.',
+        })
+        controller.close()
       }
     },
   })
