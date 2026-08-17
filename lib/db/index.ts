@@ -10,10 +10,21 @@ import { drizzle } from 'drizzle-orm/neon-http'
 import { neon } from '@neondatabase/serverless'
 import * as schema from './schema'
 
+/** channel_binding=require breaks Neon HTTP driver on some Node setups. */
+function normalizeDatabaseUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    parsed.searchParams.delete('channel_binding')
+    return parsed.toString()
+  } catch {
+    return url.replace(/([?&])channel_binding=[^&]*&?/g, '$1').replace(/[?&]$/, '')
+  }
+}
+
 export const isDatabaseConnected = Boolean(process.env.DATABASE_URL)
 
 export const db = isDatabaseConnected
-  ? drizzle(neon(process.env.DATABASE_URL!), { schema })
+  ? drizzle(neon(normalizeDatabaseUrl(process.env.DATABASE_URL!)), { schema })
   : null
 
 export { schema }

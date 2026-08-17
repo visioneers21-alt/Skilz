@@ -4,6 +4,7 @@
 export const MIN_USER_EXCHANGES = 5
 export const MIN_TOTAL_USER_WORDS = 80
 export const MIN_ANSWER_WORDS = 8
+export const MIN_VOICE_ANSWER_WORDS = 3
 export const MIN_CHALLENGE_WORDS = 25
 export const MIN_CONFIDENCE_SCORE = 0.35
 export const MIN_STRONG_CONFIDENCE = 0.65
@@ -41,8 +42,10 @@ export function countWords(text: string): number {
 export function normalizeSpeechText(text: string): string {
   return text
     .replace(/\s+/g, ' ')
-    .replace(/\b(uh+|um+|like,\s|you know,\s)/gi, '')
+    .replace(/\b(uh+h?\b|um+m?\b|erm+\b|ah+h?\b|like,\s|you know,\s|sort of,\s|kind of,\s)/gi, '')
+    .replace(/\b(i)\b/g, 'I')
     .replace(/\s+([,.!?])/g, '$1')
+    .replace(/\b(\w+)\s+\1\b/gi, '$1')
     .trim()
 }
 
@@ -77,18 +80,24 @@ export function assessTranscriptEligibility(
   }
 }
 
-export function assessAnswerEligibility(text: string): {
+export function assessAnswerEligibility(
+  text: string,
+  options?: { voice?: boolean },
+): {
   eligible: boolean
   words: number
   message: string | null
 } {
   const normalized = normalizeSpeechText(text)
   const words = countWords(normalized)
-  if (words < MIN_ANSWER_WORDS) {
+  const minWords = options?.voice ? MIN_VOICE_ANSWER_WORDS : MIN_ANSWER_WORDS
+  if (words < minWords) {
     return {
       eligible: false,
       words,
-      message: `Share a bit more detail (${MIN_ANSWER_WORDS}+ words helps SKILZ understand you).`,
+      message: options?.voice
+        ? `Say a bit more (${minWords}+ words helps SKILZ understand you).`
+        : `Share a bit more detail (${minWords}+ words helps SKILZ understand you).`,
     }
   }
   return { eligible: true, words, message: null }

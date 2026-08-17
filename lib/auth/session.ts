@@ -13,27 +13,32 @@ export interface SessionUser {
 
 async function lookupSession(token: string): Promise<SessionUser | null> {
   if (!db) return null
-  const tokenHash = hashValue(token)
-  const rows = await db
-    .select({
-      userId: authSessions.userId,
-      email: users.email,
-      expiresAt: authSessions.expiresAt,
-    })
-    .from(authSessions)
-    .innerJoin(users, eq(users.id, authSessions.userId))
-    .where(eq(authSessions.tokenHash, tokenHash))
-    .limit(1)
+  try {
+    const tokenHash = hashValue(token)
+    const rows = await db
+      .select({
+        userId: authSessions.userId,
+        email: users.email,
+        expiresAt: authSessions.expiresAt,
+      })
+      .from(authSessions)
+      .innerJoin(users, eq(users.id, authSessions.userId))
+      .where(eq(authSessions.tokenHash, tokenHash))
+      .limit(1)
 
-  const row = rows[0]
-  if (!row?.email) return null
+    const row = rows[0]
+    if (!row?.email) return null
 
-  if (row.expiresAt < new Date()) {
-    await db.delete(authSessions).where(eq(authSessions.tokenHash, tokenHash))
+    if (row.expiresAt < new Date()) {
+      await db.delete(authSessions).where(eq(authSessions.tokenHash, tokenHash))
+      return null
+    }
+
+    return { id: row.userId, email: row.email }
+  } catch (err) {
+    console.error('[skilz] session lookup failed:', err)
     return null
   }
-
-  return { id: row.userId, email: row.email }
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {

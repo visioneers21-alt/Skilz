@@ -29,19 +29,32 @@ Open [http://localhost:3000](http://localhost:3000).
 |----------|----------|-------------|
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Yes | Free API key from [Google AI Studio](https://aistudio.google.com/apikey) |
 | `DATABASE_URL` | Yes (for auth) | Neon PostgreSQL connection string |
-| `BREVO_API_KEY` | Yes (for auth) | Brevo API key for OTP email sign-in |
-| `BREVO_SENDER_EMAIL` | Yes (for auth) | Verified sender address in Brevo |
+| `BREVO_API_KEY` | Yes (for email OTP) | Brevo API key for OTP email sign-in |
+| `BREVO_SENDER_EMAIL` | Yes (for email OTP) | Verified sender address in Brevo |
+| `GOOGLE_CLIENT_ID` | For Google sign-in | OAuth client ID from [Google Cloud Console](https://console.cloud.google.com/apis/credentials) |
+| `GOOGLE_CLIENT_SECRET` | For Google sign-in | OAuth client secret |
 
 ## Auth
 
-Guests receive **3 free AI sessions** (discover, analyze, challenge, or plan API calls). After that, they must sign in with a one-time code sent via Brevo email.
+Guests receive **3 free AI sessions** (discover, analyze, challenge, or plan API calls). After that, they must sign in.
+
+Sign-in options:
+
+- **Google** — OAuth redirect flow (`/api/auth/google`)
+- **Email OTP** — one-time code sent via Brevo
 
 ```bash
 # Push schema to Neon
 npm run db:push
 ```
 
-Set `DATABASE_URL`, `BREVO_API_KEY`, and `BREVO_SENDER_EMAIL` in `.env.local`.
+Set `DATABASE_URL` in `.env.local`. For email OTP, also set `BREVO_API_KEY` and `BREVO_SENDER_EMAIL`. For Google sign-in, create an OAuth 2.0 client and set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Add this authorized redirect URI:
+
+```
+http://localhost:3000/api/auth/google/callback
+```
+
+(Use your production domain in production.)
 
 ## User flow
 

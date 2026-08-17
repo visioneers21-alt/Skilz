@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { isDatabaseConnected } from '@/lib/db'
-import { createAndSendOtp, isValidEmail } from '@/lib/auth/otp'
+import { createAndSendOtp, isValidEmail, OtpResendCooldownError } from '@/lib/auth/otp'
 import { isBrevoConfigured } from '@/lib/email/brevo'
 
 const RequestSchema = z.object({
@@ -31,6 +31,15 @@ export async function POST(req: Request) {
     await createAndSendOtp(parsed.data.email)
     return Response.json({ ok: true })
   } catch (err) {
+    if (err instanceof OtpResendCooldownError) {
+      return Response.json(
+        {
+          error: err.message,
+          retryAfterSeconds: err.retryAfterSeconds,
+        },
+        { status: 429 },
+      )
+    }
     console.error('[skilz] send-otp error:', err)
     const message =
       err instanceof Error ? err.message : 'Could not send sign-in code'

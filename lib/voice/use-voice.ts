@@ -16,15 +16,19 @@ interface UseVoiceReturn {
   permission: VoicePermission
   start: () => Promise<boolean>
   stop: () => void
+  stopAndCapture: () => string
   reset: () => void
   speak: (text: string, onEnd?: () => void) => void
   cancelSpeak: () => void
+  interruptForListening: () => Promise<boolean>
 }
 
 export function useVoice(): UseVoiceReturn {
   const serviceRef = useRef(
     typeof window !== 'undefined' ? getVoiceService() : null,
   )
+  const transcriptRef = useRef('')
+  const interimRef = useRef('')
   const [listening, setListening] = useState(false)
   const [speaking, setSpeaking] = useState(false)
   const [transcript, setTranscript] = useState('')
@@ -32,6 +36,10 @@ export function useVoice(): UseVoiceReturn {
   const [permission, setPermission] = useState<VoicePermission>('unknown')
   const [recognitionSupported, setRecognitionSupported] = useState(false)
   const [synthesisSupported, setSynthesisSupported] = useState(false)
+
+  const syncLiveText = useCallback(() => {
+    return [transcriptRef.current, interimRef.current].filter(Boolean).join(' ').trim()
+  }, [])
 
   useEffect(() => {
     const svc = serviceRef.current
@@ -48,23 +56,30 @@ export function useVoice(): UseVoiceReturn {
     const svc = serviceRef.current
     if (!svc) return false
 
+    // Release the audio output device before grabbing the mic (Chrome conflict).
+    svc.cancelSpeaking()
+
     const allowed = await svc.requestMicrophonePermission()
     if (!allowed) {
       setPermission('denied')
       setListening(false)
+      interimRef.current = ''
       setInterim('')
       return false
     }
 
     setPermission('granted')
+    interimRef.current = ''
     setInterim('')
     setListening(true)
 
     svc.startListening({
       onResult: (finalText, interimText) => {
         if (finalText) {
-          setTranscript((prev) => (prev + ' ' + finalText).trim())
+          transcriptRef.current = (transcriptRef.current + ' ' + finalText).trim()
+          setTranscript(transcriptRef.current)
         }
+        interimRef.current = interimText
         setInterim(interimText)
       },
       onError: (error) => {
@@ -72,10 +87,12 @@ export function useVoice(): UseVoiceReturn {
           setPermission('denied')
         }
         setListening(false)
+        interimRef.current = ''
         setInterim('')
       },
       onEnd: () => {
         setListening(false)
+        interimRef.current = ''
         setInterim('')
       },
     })
@@ -85,10 +102,22 @@ export function useVoice(): UseVoiceReturn {
   const stop = useCallback(() => {
     serviceRef.current?.stopListening()
     setListening(false)
+    interimRef.current = ''
     setInterim('')
   }, [])
 
+  const stopAndCapture = useCallback(() => {
+    const captured = syncLiveText()
+    serviceRef.current?.stopListening()
+    setListening(false)
+    interimRef.current = ''
+    setInterim('')
+    return captured
+  }, [syncLiveText])
+
   const reset = useCallback(() => {
+    transcriptRef.current = ''
+    interimRef.current = ''
     setTranscript('')
     setInterim('')
   }, [])
@@ -111,6 +140,16 @@ export function useVoice(): UseVoiceReturn {
     setSpeaking(false)
   }, [])
 
+  const interruptForListening = useCallback(async (): Promise<boolean> => {
+    serviceRef.current?.cancelSpeaking()
+    setSpeaking(false)
+    transcriptRef.current = ''
+    interimRef.current = ''
+    setTranscript('')
+    setInterim('')
+    return start()
+  }, [start])
+
   const liveText = [transcript, interim].filter(Boolean).join(' ').trim()
 
   return {
@@ -124,8 +163,10 @@ export function useVoice(): UseVoiceReturn {
     permission,
     start,
     stop,
+    stopAndCapture,
     reset,
     speak,
     cancelSpeak,
+    interruptForListening,
   }
 }

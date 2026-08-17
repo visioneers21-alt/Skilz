@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
@@ -30,7 +30,9 @@ export default function SignupPage() {
       </header>
 
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-5 pb-12">
-        <AuthForm mode="signup" onSuccess={() => router.push('/onboarding')} />
+        <Suspense fallback={null}>
+          <AuthForm mode="signup" onSuccess={() => router.push('/onboarding')} />
+        </Suspense>
         <p className="mt-6 text-center text-xs text-muted-foreground">
           After verifying your email, you&apos;ll set up your profile to get started.
         </p>

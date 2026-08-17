@@ -18,13 +18,36 @@ import {
   boolean,
   timestamp,
   jsonb,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   email: text('email').unique(),
+  name: text('name'),
+  image: text('image'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
+
+// Links a user to an OAuth provider account (Google, etc.).
+export const oauthAccounts = pgTable(
+  'oauth_accounts',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    provider: text('provider').notNull(),
+    providerAccountId: text('provider_account_id').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('oauth_accounts_provider_account_idx').on(
+      table.provider,
+      table.providerAccountId,
+    ),
+  ],
+)
 
 // Tracks free AI tries for anonymous visitors (cookie id → row).
 export const guestUsage = pgTable('guest_usage', {

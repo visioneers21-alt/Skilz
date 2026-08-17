@@ -1,33 +1,54 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Loader2, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { GUEST_TRY_LIMIT } from '@/lib/auth/constants'
-import { useAuth } from '@/lib/auth/auth-context'
+import { Separator } from '@/components/ui/separator'
+import { GoogleSignInButton } from '@/components/skilz/google-sign-in-button'
+import { GUEST_TRY_LIMIT, OTP_RESEND_COOLDOWN_MS } from '@/lib/auth/constants'
+import { SendOtpError, useAuth } from '@/lib/auth/auth-context'
 
 type AuthMode = 'login' | 'signup'
 
+const RESEND_COOLDOWN_SEC = Math.ceil(OTP_RESEND_COOLDOWN_MS / 1000)
+
+const OAUTH_ERRORS: Record<string, string> = {
+  google_unavailable: 'Google sign-in is not configured yet. Use email instead.',
+  google_denied: 'Google sign-in was cancelled.',
+  google_failed: 'Could not sign in with Google. Try again or use email.',
+  auth_unavailable: 'Sign-in is temporarily unavailable.',
+}
+
 const COPY: Record<
   AuthMode,
-  { title: string; subtitle: string; submit: string; alternate: string; alternateHref: string }
+  {
+    title: string
+    subtitle: string
+    submit: string
+    alternate: string
+    alternateHref: string
+    redirect: string
+  }
 > = {
   login: {
     title: 'Welcome back',
-    subtitle: 'Sign in with a one-time code sent to your email. No password needed.',
+    subtitle: 'Sign in with Google or a one-time code sent to your email.',
     submit: 'Send sign-in code',
     alternate: "Don't have an account?",
     alternateHref: '/signup',
+    redirect: '/dashboard',
   },
   signup: {
     title: 'Create your account',
-    subtitle: `Start with ${GUEST_TRY_LIMIT} free AI sessions, then sign up to keep going.`,
+    subtitle: `Sign up with Google or email. Start with ${GUEST_TRY_LIMIT} free AI sessions.`,
     submit: 'Send verification code',
     alternate: 'Already have an account?',
     alternateHref: '/login',
+    redirect: '/onboarding',
   },
 }
 
@@ -37,7 +58,25 @@ interface AuthFormProps {
   showGuestHint?: boolean
 }
 
+function resetToEmailStep(setters: {
+  setStep: (step: 'email' | 'code') => void
+  setCode: (code: string) => void
+  setError: (error: string | null) => void
+  setSent: (sent: boolean) => void
+  setResendNotice: (notice: string | null) => void
+  clearEmail?: boolean
+  setEmail?: (email: string) => void
+}) {
+  setters.setStep('email')
+  setters.setCode('')
+  setters.setError(null)
+  setters.setSent(false)
+  setters.setResendNotice(null)
+  if (setters.clearEmail && setters.setEmail) setters.setEmail('')
+}
+
 export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProps) {
+  const searchParams = useSearchParams()
   const { sendOtp, verifyOtp, triesRemaining, authenticated } = useAuth()
   const copy = COPY[mode]
 
@@ -45,29 +84,89 @@ export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProp
   const [code, setCode] = useState('')
   const [step, setStep] = useState<'email' | 'code'>('email')
   const [loading, setLoading] = useState(false)
+  const [resendLoading, setResendLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resendNotice, setResendNotice] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
+  const [googleEnabled, setGoogleEnabled] = useState(false)
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  useEffect(() => {
+    void fetch('/api/auth/providers')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.google) setGoogleEnabled(true)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const oauthError = searchParams.get('error')
+    if (oauthError && OAUTH_ERRORS[oauthError]) {
+      setError(OAUTH_ERRORS[oauthError]!)
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const timer = window.setInterval(() => {
+      setResendCooldown((seconds) => Math.max(0, seconds - 1))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [resendCooldown])
 
   if (authenticated) return null
 
-  async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault()
+  function startResendCooldown(seconds = RESEND_COOLDOWN_SEC) {
+    setResendCooldown(seconds)
+  }
+
+  async function dispatchOtp(targetEmail: string, options?: { isResend?: boolean }) {
+    const trimmed = targetEmail.trim()
+    if (!trimmed) return
+
+    if (options?.isResend) {
+      setResendLoading(true)
+      setResendNotice(null)
+    } else {
+      setLoading(true)
+    }
     setError(null)
-    setLoading(true)
+
     try {
-      await sendOtp(email.trim())
+      await sendOtp(trimmed)
       setStep('code')
       setSent(true)
+      setCode('')
+      startResendCooldown()
+      if (options?.isResend) {
+        setResendNotice(`A new code was sent to ${trimmed}.`)
+      }
     } catch (err) {
+      if (err instanceof SendOtpError && err.retryAfterSeconds) {
+        startResendCooldown(err.retryAfterSeconds)
+      }
       setError(err instanceof Error ? err.message : 'Could not send code')
     } finally {
-      setLoading(false)
+      if (options?.isResend) setResendLoading(false)
+      else setLoading(false)
     }
+  }
+
+  async function handleSendOtp(e: React.FormEvent) {
+    e.preventDefault()
+    await dispatchOtp(email)
+  }
+
+  async function handleResend() {
+    if (resendCooldown > 0 || resendLoading) return
+    await dispatchOtp(email, { isResend: true })
   }
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setResendNotice(null)
     setLoading(true)
     try {
       await verifyOtp(email.trim(), code.trim())
@@ -79,12 +178,40 @@ export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProp
     }
   }
 
+  function handleDifferentEmail() {
+    resetToEmailStep({
+      setStep,
+      setCode,
+      setError,
+      setSent,
+      setResendNotice,
+      clearEmail: true,
+      setEmail,
+    })
+    setResendCooldown(0)
+  }
+
+  function handleBackToMethods() {
+    resetToEmailStep({
+      setStep,
+      setCode,
+      setError,
+      setSent,
+      setResendNotice,
+    })
+    setResendCooldown(0)
+  }
+
   return (
     <div className="w-full max-w-md">
       <h1 className="text-2xl font-bold md:text-3xl">{copy.title}</h1>
-      <p className="mt-2 text-sm text-muted-foreground">{copy.subtitle}</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        {step === 'code'
+          ? `Enter the 6-digit code sent to ${email || 'your email'}.`
+          : copy.subtitle}
+      </p>
 
-      {showGuestHint && !authenticated && triesRemaining < GUEST_TRY_LIMIT && (
+      {showGuestHint && !authenticated && triesRemaining < GUEST_TRY_LIMIT && step === 'email' && (
         <p className="mt-3 rounded-lg bg-accent/60 px-3 py-2 text-xs text-accent-foreground">
           {triesRemaining > 0
             ? `${triesRemaining} of ${GUEST_TRY_LIMIT} free AI sessions remaining.`
@@ -92,9 +219,15 @@ export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProp
         </p>
       )}
 
-      {sent && step === 'code' && (
+      {sent && step === 'code' && !resendNotice && (
         <p className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
           Check your inbox at <span className="font-medium">{email}</span> for a 6-digit code.
+        </p>
+      )}
+
+      {resendNotice && (
+        <p className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
+          {resendNotice}
         </p>
       )}
 
@@ -105,58 +238,107 @@ export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProp
       )}
 
       {step === 'email' ? (
-        <form onSubmit={handleSendOtp} className="mt-6 space-y-4">
-          <div>
-            <Label htmlFor="auth-email">Email</Label>
-            <div className="relative mt-2">
-              <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="mt-6 space-y-4">
+          {googleEnabled && (
+            <>
+              <GoogleSignInButton redirect={copy.redirect} />
+              <div className="relative py-1">
+                <Separator />
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-3 text-xs text-muted-foreground">
+                  or use email
+                </span>
+              </div>
+            </>
+          )}
+          <form onSubmit={handleSendOtp} className="space-y-4">
+            <div>
+              <Label htmlFor="auth-email">Email</Label>
+              <div className="relative mt-2">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="auth-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="h-11 pl-10"
+                />
+              </div>
+            </div>
+            <Button type="submit" className="h-11 w-full" disabled={loading || !email.trim()}>
+              {loading ? <Loader2 className="size-4 animate-spin" /> : copy.submit}
+            </Button>
+          </form>
+        </div>
+      ) : (
+        <div className="mt-6 space-y-5">
+          <form onSubmit={handleVerify} className="space-y-4">
+            <div>
+              <Label htmlFor="auth-code">Verification code</Label>
               <Input
-                id="auth-email"
-                type="email"
-                autoComplete="email"
+                id="auth-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="h-11 pl-10"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="123456"
+                className="mt-2 h-11 text-center text-lg tracking-[0.3em]"
               />
             </div>
+            <Button type="submit" className="h-11 w-full" disabled={loading || code.length < 4}>
+              {loading ? <Loader2 className="size-4 animate-spin" /> : 'Verify and continue'}
+            </Button>
+          </form>
+
+          <div className="rounded-xl border border-border bg-muted/30 p-4">
+            <p className="text-center text-sm font-medium">Need help signing in?</p>
+            <div className="mt-3 flex flex-col gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full"
+                disabled={resendCooldown > 0 || resendLoading}
+                onClick={() => void handleResend()}
+              >
+                {resendLoading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : resendCooldown > 0 ? (
+                  `Resend code in ${resendCooldown}s`
+                ) : (
+                  'Resend code'
+                )}
+              </Button>
+
+              {googleEnabled && (
+                <GoogleSignInButton
+                  redirect={copy.redirect}
+                  label="Continue with Google instead"
+                />
+              )}
+
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-10 w-full text-muted-foreground"
+                onClick={handleDifferentEmail}
+              >
+                Use a different email
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-10 w-full text-muted-foreground"
+                onClick={handleBackToMethods}
+              >
+                Back to all sign-in options
+              </Button>
+            </div>
           </div>
-          <Button type="submit" className="h-11 w-full" disabled={loading || !email.trim()}>
-            {loading ? <Loader2 className="size-4 animate-spin" /> : copy.submit}
-          </Button>
-        </form>
-      ) : (
-        <form onSubmit={handleVerify} className="mt-6 space-y-4">
-          <div>
-            <Label htmlFor="auth-code">Verification code</Label>
-            <Input
-              id="auth-code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              required
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="123456"
-              className="mt-2 h-11 text-center text-lg tracking-[0.3em]"
-            />
-          </div>
-          <Button type="submit" className="h-11 w-full" disabled={loading || code.length < 4}>
-            {loading ? <Loader2 className="size-4 animate-spin" /> : 'Verify and continue'}
-          </Button>
-          <button
-            type="button"
-            className="w-full text-sm text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              setStep('email')
-              setCode('')
-              setError(null)
-              setSent(false)
-            }}
-          >
-            Use a different email
-          </button>
-        </form>
+        </div>
       )}
 
       <p className="mt-6 text-center text-sm text-muted-foreground">

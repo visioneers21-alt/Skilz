@@ -4,6 +4,9 @@ import {
   GUEST_COOKIE,
   GUEST_TRIES_COOKIE,
   GUEST_TRY_LIMIT,
+  OAUTH_REDIRECT_COOKIE,
+  OAUTH_STATE_COOKIE,
+  OAUTH_STATE_TTL_SEC,
   SESSION_COOKIE,
   SESSION_TTL_MS,
 } from './constants'
@@ -90,4 +93,32 @@ export function createGuestSetCookie(): string {
   ]
   if (process.env.NODE_ENV === 'production') attrs.push('Secure')
   return attrs.join('; ')
+}
+
+export function setOAuthFlowCookies(
+  response: { cookies: { set: (name: string, value: string, options: object) => void } },
+  state: string,
+  redirectPath: string,
+) {
+  const opts = {
+    ...BASE_COOKIE,
+    maxAge: OAUTH_STATE_TTL_SEC,
+  }
+  response.cookies.set(OAUTH_STATE_COOKIE, state, opts)
+  response.cookies.set(OAUTH_REDIRECT_COOKIE, redirectPath, opts)
+}
+
+export function clearOAuthFlowCookies(response: {
+  cookies: { delete: (name: string) => void }
+}) {
+  response.cookies.delete(OAUTH_STATE_COOKIE)
+  response.cookies.delete(OAUTH_REDIRECT_COOKIE)
+}
+
+export function readOAuthStateFromRequest(req: Request): string | null {
+  return parseCookie(req.headers.get('cookie'), OAUTH_STATE_COOKIE)
+}
+
+export function readOAuthRedirectFromRequest(req: Request): string | null {
+  return parseCookie(req.headers.get('cookie'), OAUTH_REDIRECT_COOKIE)
 }

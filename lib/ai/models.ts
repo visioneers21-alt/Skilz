@@ -10,12 +10,38 @@
 
 import { google } from '@ai-sdk/google'
 
-/** Default model — override with GEMINI_MODEL in .env.local if needed. */
-const MODEL_ID = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash'
+const DEFAULT_MODEL = 'gemini-2.5-flash'
 
-/** Fast model for discovery chat + structured analysis. */
+/** Models Google has fully retired. */
+const BLOCKED_MODELS = new Set(['gemini-2.0-flash'])
+
+function resolveModelId(envValue: string | undefined, fallback: string): string {
+  const requested = (envValue ?? fallback).trim()
+  if (BLOCKED_MODELS.has(requested)) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(
+        `[skilz] ${requested} is unavailable — using ${DEFAULT_MODEL}. Update GEMINI_MODEL in .env.local.`,
+      )
+    }
+    return DEFAULT_MODEL
+  }
+  return requested
+}
+
+/** Default model — override with GEMINI_MODEL in .env.local if needed. */
+const MODEL_ID = resolveModelId(process.env.GEMINI_MODEL, DEFAULT_MODEL)
+
+if (process.env.NODE_ENV === 'development') {
+  console.log(`[skilz] Gemini conversation model: ${MODEL_ID}`)
+}
+
+/** Fast model for discovery chat — pair with reasoning: 'none' in stream calls. */
 export const CONVERSATION_MODEL = google(MODEL_ID)
-export const ANALYSIS_MODEL = google(MODEL_ID)
+
+/** Structured analysis — override with GEMINI_ANALYSIS_MODEL if needed. */
+export const ANALYSIS_MODEL = google(
+  resolveModelId(process.env.GEMINI_ANALYSIS_MODEL, MODEL_ID),
+)
 
 export const SKILZ_ACCURACY_RULES = `Accuracy rules (always follow):
 - Only infer skills from concrete behaviors, stories, or examples the person shared.

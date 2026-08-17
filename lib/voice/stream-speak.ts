@@ -2,6 +2,15 @@
 
 import { getVoiceService } from './voice-service'
 
+/** Only speak once a sentence has real punctuation (not end-of-string). */
+const COMPLETE_SENTENCE = /[^.!?\n]+[.!?]+/g
+const MIN_CLAUSE_CHARS = 48
+const PAUSE_BETWEEN_MS = 180
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms))
+}
+
 /** Speaks complete sentences as they arrive during a streaming reply. */
 export class StreamSpeaker {
   private spokenIndex = 0
@@ -9,6 +18,7 @@ export class StreamSpeaker {
   private speaking = false
   private onIdle: (() => void) | null = null
   private cancelled = false
+  private drainGeneration = 0
 
   reset() {
     this.spokenIndex = 0
@@ -16,6 +26,7 @@ export class StreamSpeaker {
     this.speaking = false
     this.cancelled = false
     this.onIdle = null
+    this.drainGeneration++
     getVoiceService().cancelSpeaking()
   }
 
@@ -23,25 +34,18 @@ export class StreamSpeaker {
     this.cancelled = true
     this.queue = []
     this.speaking = false
+    this.onIdle = null
+    this.drainGeneration++
     getVoiceService().cancelSpeaking()
   }
 
-  feed(fullText: string, onAllSpoken?: () => void) {
+  isActive() {
+    return !this.cancelled && (this.speaking || this.queue.length > 0)
+  }
+
+  feed(fullText: string) {
     if (this.cancelled) return
-    if (onAllSpoken) this.onIdle = onAllSpoken
-
-    const remainder = fullText.slice(this.spokenIndex)
-    const regex = /[^.!?]+[.!?]+/g
-    let match: RegExpExecArray | null
-    let consumed = 0
-
-    while ((match = regex.exec(remainder)) !== null) {
-      const sentence = match[0].trim()
-      if (sentence) this.queue.push(sentence)
-      consumed = match.index + match[0].length
-    }
-
-    if (consumed > 0) this.spokenIndex += consumed
+    this.enqueueCompleteSentences(fullText)
     void this.drain()
   }
 
@@ -49,28 +53,78 @@ export class StreamSpeaker {
     if (this.cancelled) return
     if (onAllSpoken) this.onIdle = onAllSpoken
 
+    this.enqueueCompleteSentences(fullText)
+
     const tail = fullText.slice(this.spokenIndex).trim()
-    if (tail) this.queue.push(tail)
-    this.spokenIndex = fullText.length
+    if (tail) {
+      this.queue.push(tail)
+      this.spokenIndex = fullText.length
+    }
+
+    if (!this.speaking && this.queue.length === 0) {
+      this.invokeIdle()
+      return
+    }
+
     void this.drain()
   }
 
-  private async drain() {
-    if (this.speaking || this.queue.length === 0) return
-    this.speaking = true
-    const svc = getVoiceService()
+  private invokeIdle() {
+    const cb = this.onIdle
+    this.onIdle = null
+    cb?.()
+  }
 
-    while (this.queue.length > 0 && !this.cancelled) {
-      const sentence = this.queue.shift()!
-      await new Promise<void>((resolve) => {
-        svc.speak(sentence, () => resolve())
-      })
+  private enqueueCompleteSentences(fullText: string) {
+    const remainder = fullText.slice(this.spokenIndex)
+    if (!remainder) return
+
+    let consumed = 0
+
+    COMPLETE_SENTENCE.lastIndex = 0
+    let match: RegExpExecArray | null
+    while ((match = COMPLETE_SENTENCE.exec(remainder)) !== null) {
+      const sentence = match[0].replace(/\n+/g, ' ').trim()
+      if (sentence) this.queue.push(sentence)
+      consumed = match.index + match[0].length
     }
 
+    // Speak long clause chunks at natural pauses (commas) once enough text buffered.
+    const pending = remainder.slice(consumed)
+    if (pending.length >= MIN_CLAUSE_CHARS) {
+      const clauseMatch = pending.match(/^[\s\S]{48,}?[,;:](?=\s)/)
+      if (clauseMatch) {
+        const clause = clauseMatch[0].replace(/\n+/g, ' ').trim()
+        if (clause) {
+          this.queue.push(clause)
+          consumed += clauseMatch[0].length
+        }
+      }
+    }
+
+    if (consumed > 0) this.spokenIndex += consumed
+  }
+
+  private async drain() {
+    if (this.speaking || this.queue.length === 0 || this.cancelled) return
+
+    this.speaking = true
+    const generation = this.drainGeneration
+    const svc = getVoiceService()
+
+    while (this.queue.length > 0 && !this.cancelled && generation === this.drainGeneration) {
+      const sentence = this.queue.shift()!
+      await svc.speakAndWait(sentence)
+      if (this.queue.length > 0 && !this.cancelled && generation === this.drainGeneration) {
+        await sleep(PAUSE_BETWEEN_MS)
+      }
+    }
+
+    if (generation !== this.drainGeneration || this.cancelled) return
+
     this.speaking = false
-    if (!this.cancelled && this.queue.length === 0) {
-      this.onIdle?.()
-      this.onIdle = null
+    if (this.queue.length === 0) {
+      this.invokeIdle()
     }
   }
 }

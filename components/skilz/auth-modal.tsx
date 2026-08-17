@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { AuthForm } from '@/components/skilz/auth-form'
 import { useAuth } from '@/lib/auth/auth-context'
 
@@ -23,7 +24,9 @@ export function AuthModal() {
         >
           Close
         </button>
-        <AuthForm mode="login" onSuccess={closeAuthModal} />
+        <Suspense fallback={null}>
+          <AuthForm mode="login" onSuccess={closeAuthModal} showGuestHint />
+        </Suspense>
       </div>
     </div>
   )

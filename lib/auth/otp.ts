@@ -2,7 +2,7 @@ import 'server-only'
 import { and, eq, gt } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { otpCodes } from '@/lib/db/schema'
-import { OTP_TTL_MS } from './constants'
+import { OTP_RESEND_COOLDOWN_MS, OTP_TTL_MS } from './constants'
 import { generateOtp, hashValue } from './crypto'
 import { isBrevoConfigured, sendOtpEmail } from '@/lib/email/brevo'
 
@@ -12,11 +12,36 @@ export function isValidEmail(email: string): boolean {
   return EMAIL_RE.test(email.trim())
 }
 
+export class OtpResendCooldownError extends Error {
+  retryAfterSeconds: number
+
+  constructor(retryAfterSeconds: number) {
+    super(`Wait ${retryAfterSeconds}s before requesting a new code`)
+    this.name = 'OtpResendCooldownError'
+    this.retryAfterSeconds = retryAfterSeconds
+  }
+}
+
 export async function createAndSendOtp(email: string): Promise<void> {
   if (!db) throw new Error('Database not connected')
   if (!isBrevoConfigured()) throw new Error('Email service not configured')
 
   const normalized = email.trim().toLowerCase()
+
+  const existing = await db
+    .select({ createdAt: otpCodes.createdAt })
+    .from(otpCodes)
+    .where(eq(otpCodes.email, normalized))
+    .limit(1)
+
+  if (existing[0]) {
+    const elapsed = Date.now() - existing[0].createdAt.getTime()
+    if (elapsed < OTP_RESEND_COOLDOWN_MS) {
+      const retryAfterSeconds = Math.ceil((OTP_RESEND_COOLDOWN_MS - elapsed) / 1000)
+      throw new OtpResendCooldownError(retryAfterSeconds)
+    }
+  }
+
   const code = generateOtp()
   const codeHash = hashValue(code)
   const expiresAt = new Date(Date.now() + OTP_TTL_MS)

@@ -18,6 +18,16 @@ export interface AuthStatus {
   triesRemaining: number
 }
 
+export class SendOtpError extends Error {
+  retryAfterSeconds?: number
+
+  constructor(message: string, retryAfterSeconds?: number) {
+    super(message)
+    this.name = 'SendOtpError'
+    this.retryAfterSeconds = retryAfterSeconds
+  }
+}
+
 interface AuthContextValue extends AuthStatus {
   loading: boolean
   authModalOpen: boolean
@@ -71,8 +81,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email }),
     })
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data.error || 'Could not send code')
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        retryAfterSeconds?: number
+      }
+      throw new SendOtpError(
+        data.error || 'Could not send code',
+        data.retryAfterSeconds,
+      )
     }
   }, [])
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
@@ -30,7 +30,9 @@ export default function LoginPage() {
       </header>
 
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-5 pb-12">
-        <AuthForm mode="login" onSuccess={() => router.push('/dashboard')} />
+        <Suspense fallback={null}>
+          <AuthForm mode="login" onSuccess={() => router.push('/dashboard')} />
+        </Suspense>
       </main>
     </div>
   )

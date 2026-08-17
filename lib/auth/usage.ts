@@ -40,14 +40,19 @@ export async function getUsageStatus(): Promise<UsageStatus> {
 async function readGuestTries(): Promise<number> {
   if (!db) return getFallbackGuestTries()
 
-  const guestId = await getGuestId()
-  const rows = await db
-    .select({ triesUsed: guestUsage.triesUsed })
-    .from(guestUsage)
-    .where(eq(guestUsage.id, guestId))
-    .limit(1)
+  try {
+    const guestId = await getGuestId()
+    const rows = await db
+      .select({ triesUsed: guestUsage.triesUsed })
+      .from(guestUsage)
+      .where(eq(guestUsage.id, guestId))
+      .limit(1)
 
-  return rows[0]?.triesUsed ?? 0
+    return rows[0]?.triesUsed ?? 0
+  } catch (err) {
+    console.error('[skilz] guest usage read failed:', err)
+    return getFallbackGuestTries()
+  }
 }
 
 export type AiAccessResult =
@@ -70,51 +75,55 @@ export async function consumeAiTry(): Promise<AiAccessResult> {
   }
 
   if (db) {
-    const guestId = await getGuestId()
-    const now = new Date()
+    try {
+      const guestId = await getGuestId()
+      const now = new Date()
 
-    const rows = await db
-      .select({ triesUsed: guestUsage.triesUsed })
-      .from(guestUsage)
-      .where(eq(guestUsage.id, guestId))
-      .limit(1)
+      const rows = await db
+        .select({ triesUsed: guestUsage.triesUsed })
+        .from(guestUsage)
+        .where(eq(guestUsage.id, guestId))
+        .limit(1)
 
-    const current = rows[0]?.triesUsed ?? 0
-    if (current >= GUEST_TRY_LIMIT) {
+      const current = rows[0]?.triesUsed ?? 0
+      if (current >= GUEST_TRY_LIMIT) {
+        return {
+          allowed: false,
+          status: {
+            authenticated: false,
+            email: null,
+            triesUsed: current,
+            triesRemaining: 0,
+          },
+        }
+      }
+
+      const next = current + 1
+      if (rows[0]) {
+        await db
+          .update(guestUsage)
+          .set({ triesUsed: next, updatedAt: now })
+          .where(eq(guestUsage.id, guestId))
+      } else {
+        await db.insert(guestUsage).values({
+          id: guestId,
+          triesUsed: next,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+
       return {
-        allowed: false,
+        allowed: true,
         status: {
           authenticated: false,
           email: null,
-          triesUsed: current,
-          triesRemaining: 0,
+          triesUsed: next,
+          triesRemaining: Math.max(0, GUEST_TRY_LIMIT - next),
         },
       }
-    }
-
-    const next = current + 1
-    if (rows[0]) {
-      await db
-        .update(guestUsage)
-        .set({ triesUsed: next, updatedAt: now })
-        .where(eq(guestUsage.id, guestId))
-    } else {
-      await db.insert(guestUsage).values({
-        id: guestId,
-        triesUsed: next,
-        createdAt: now,
-        updatedAt: now,
-      })
-    }
-
-    return {
-      allowed: true,
-      status: {
-        authenticated: false,
-        email: null,
-        triesUsed: next,
-        triesRemaining: Math.max(0, GUEST_TRY_LIMIT - next),
-      },
+    } catch (err) {
+      console.error('[skilz] guest usage write failed:', err)
     }
   }
 

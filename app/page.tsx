@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { SkilzLogo } from '@/components/skilz/logo'
 import { StartCta } from '@/components/landing/start-cta'
+import { AuthHeaderActions } from '@/components/skilz/auth-header-actions'
 
 const STEPS = [
   {
@@ -39,14 +40,7 @@ export default function LandingPage() {
     <div className="flex min-h-dvh flex-col">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5">
         <SkilzLogo />
-        <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/login">Log in</Link>
-          </Button>
-          <Button asChild size="sm">
-            <Link href="/signup">Sign up</Link>
-          </Button>
-        </div>
+        <AuthHeaderActions />
       </header>
 
       <main className="flex-1">

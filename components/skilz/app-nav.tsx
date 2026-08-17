@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Compass, Layers, Map, User, Mic, LogIn } from 'lucide-react'
+import { Home, Compass, Layers, Map, User, Mic, LogIn, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SkilzLogo } from '@/components/skilz/logo'
 import { Button } from '@/components/ui/button'
@@ -23,7 +23,7 @@ function isActive(pathname: string, href: string) {
 
 export function DesktopNav() {
   const pathname = usePathname()
-  const { authenticated, loading } = useAuth()
+  const { authenticated, email, loading, logout } = useAuth()
   return (
     <header className="sticky top-0 z-30 hidden border-b border-border bg-background/85 backdrop-blur md:block">
       <div className="mx-auto flex h-16 w-full max-w-5xl items-center gap-6 px-6">
@@ -50,6 +50,17 @@ export function DesktopNav() {
           })}
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          {!loading && authenticated && email && (
+            <>
+              <span className="max-w-[140px] truncate text-sm text-muted-foreground">
+                {email}
+              </span>
+              <Button variant="ghost" size="sm" onClick={() => void logout()}>
+                <LogOut className="size-4" />
+                Log out
+              </Button>
+            </>
+          )}
           {!loading && !authenticated && (
             <Button asChild variant="ghost" size="sm">
               <Link href="/login">

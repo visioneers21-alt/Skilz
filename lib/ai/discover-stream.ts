@@ -61,6 +61,29 @@ export type DiscoverStreamEvent =
       eligibility: EligibilityResult
     }
 
+function friendlyAiError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err)
+  if (msg.includes('API key') || msg.includes('API_KEY')) {
+    return 'Invalid Google API key. Get one at aistudio.google.com and set GOOGLE_GENERATIVE_AI_API_KEY in .env.local.'
+  }
+  if (msg.includes('404') || msg.includes('no longer available') || msg.includes('model')) {
+    return 'Gemini model unavailable. Set GEMINI_MODEL=gemini-3.6-flash in .env.local.'
+  }
+  if (
+    msg.includes('connect') ||
+    msg.includes('timeout') ||
+    msg.includes('fetch failed') ||
+    msg.includes('other side closed') ||
+    msg.includes('ECONNRESET')
+  ) {
+    return 'Could not reach Google AI. Check your internet connection, firewall, and API key.'
+  }
+  if (msg.includes('No output generated')) {
+    return 'SKILZ got no response from Gemini. Check your API key and network, then try again.'
+  }
+  return msg.slice(0, 200)
+}
+
 export async function createDiscoverStream(body: unknown): Promise<{
   stream: ReadableStream<Uint8Array>
   userTurns: number
@@ -93,10 +116,16 @@ export async function createDiscoverStream(body: unknown): Promise<{
     })
 
   let result: Awaited<ReturnType<typeof streamText>>
+  let streamError: Error | null = null
   try {
     result = streamText({
       model: CONVERSATION_MODEL,
       instructions: buildInstructions(profile, userTurns),
+      reasoning: 'none',
+      onError: ({ error }) => {
+        streamError = error instanceof Error ? error : new Error(String(error))
+        console.error('[skilz] discover model error:', error)
+      },
       ...(isOpeningTurn
         ? {
             prompt:
@@ -107,7 +136,7 @@ export async function createDiscoverStream(body: unknown): Promise<{
   } catch (err) {
     console.error('[skilz] discover stream setup error:', err)
     return {
-      stream: errorStream('SKILZ is unavailable right now.'),
+      stream: errorStream(friendlyAiError(err)),
       userTurns,
       eligibility,
     }
@@ -127,10 +156,17 @@ export async function createDiscoverStream(body: unknown): Promise<{
         }
 
         if (!reply.trim()) {
-          push({
-            type: 'error',
-            error: 'SKILZ is unavailable right now. Check your API key and model settings.',
-          })
+          let detail = 'SKILZ is unavailable right now. Check your API key and model settings.'
+          if (streamError) {
+            detail = friendlyAiError(streamError)
+          } else {
+            try {
+              await result.text
+            } catch (err) {
+              detail = friendlyAiError(err)
+            }
+          }
+          push({ type: 'error', error: detail })
           controller.close()
           return
         }
@@ -149,7 +185,7 @@ export async function createDiscoverStream(body: unknown): Promise<{
         console.error('[skilz] discover stream error:', err)
         push({
           type: 'error',
-          error: 'SKILZ is unavailable right now.',
+          error: friendlyAiError(err),
         })
         controller.close()
       }
