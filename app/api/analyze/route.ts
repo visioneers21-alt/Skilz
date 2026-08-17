@@ -1,8 +1,9 @@
 import { generateText, Output } from 'ai'
 import { z } from 'zod'
 import { ANALYSIS_MODEL, SKILZ_PERSONA } from '@/lib/ai/models'
-import { SKILL_CATALOG } from '@/lib/data/seed'
+import { FULL_SKILL_CATALOG, SKILLS_BY_SLUG, SKILL_DOMAINS } from '@/lib/discovery/catalog'
 import {
+  assessStructuredDiscoveryEligibility,
   assessTranscriptEligibility,
   normalizeSpeechText,
   refineSkillHypotheses,
@@ -18,6 +19,8 @@ const RequestSchema = z.object({
       content: z.string(),
     }),
   ),
+  candidateSlugs: z.array(z.string()).optional(),
+  structured: z.boolean().optional(),
 })
 
 const SkillSchema = z.object({
@@ -68,7 +71,10 @@ export async function POST(req: Request) {
     content: m.role === 'user' ? normalizeSpeechText(m.content) : m.content,
   }))
 
-  const eligibility = assessTranscriptEligibility(transcriptMessages)
+  const userTurns = transcriptMessages.filter((m) => m.role === 'user').length
+  const eligibility = parsed.data.structured
+    ? assessStructuredDiscoveryEligibility(userTurns)
+    : assessTranscriptEligibility(transcriptMessages)
   if (!eligibility.eligible) {
     return Response.json(
       {
@@ -84,17 +90,35 @@ export async function POST(req: Request) {
     .map((m) => `${m.role === 'user' ? 'PERSON' : 'SKILZ'}: ${m.content}`)
     .join('\n')
 
+  const candidateSkills =
+    parsed.data.candidateSlugs?.length
+      ? parsed.data.candidateSlugs
+          .map((slug) => SKILLS_BY_SLUG[slug])
+          .filter(Boolean)
+      : []
+
+  const vocabulary =
+    candidateSkills.length > 0
+      ? candidateSkills.map((s) => s.name)
+      : FULL_SKILL_CATALOG.map((s) => s.name)
+
+  const candidateBlock =
+    candidateSkills.length > 0
+      ? `\nRanked candidate skills from the person's ${userTurns} discovery answers (prioritize these):\n${candidateSkills.map((s, i) => `${i + 1}. ${s.name} (${SKILL_DOMAINS[s.domain]})`).join('\n')}\n`
+      : ''
+
   const instructions = `${SKILZ_PERSONA}
 
-Analyze the conversation transcript and identify 3 to 5 POTENTIAL skills the person shows signs of. These are hypotheses to be tested, not verdicts.
-
+Analyze the discovery Q&A transcript and identify 3 to 5 POTENTIAL skills the person shows signs of. These are hypotheses to be tested, not verdicts.
+${candidateBlock}
 Rules:
-- Prefer skill names from this vocabulary when they fit: ${SKILL_CATALOG.map((s) => s.name).join(', ')}. You may add one other clearly-supported skill.
-- Every skill MUST be grounded in something the person actually said. Never invent evidence.
-- Each evidence item must map to a specific phrase or story from the transcript.
+- Prefer skill names from this vocabulary when they fit: ${vocabulary.slice(0, 40).join(', ')}${vocabulary.length > 40 ? `, and ${vocabulary.length - 40} more related skills` : ''}.
+- When candidate skills are listed above, choose primarily from that narrowed list unless answers clearly contradict it.
+- Every skill MUST be grounded in something the person actually chose or said. Never invent evidence.
+- Each evidence item must map to a specific answer or phrase from the transcript.
 - confidenceScore calibration:
-  * 0.75–1.0 = multiple clear, specific behavioral examples
-  * 0.5–0.74 = one solid example plus supporting hints
+  * 0.75–1.0 = multiple clear, consistent signals across answers
+  * 0.5–0.74 = one strong answer plus supporting hints
   * 0.35–0.49 = thin signal — use "Worth exploring" only
 - Order from strongest to weakest signal.
 - Only mark "Strong potential" when there are 2+ distinct concrete signals AND confidence >= 0.65.

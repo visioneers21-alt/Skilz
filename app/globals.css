@@ -42,7 +42,7 @@
   color-scheme: light;
   --radius: 1rem;
 
-  /* Off-white canvas + dark navy ink + one violet accent */
+  /* Light — off-white canvas + dark navy ink + violet accent */
   --background: oklch(0.985 0.005 265);
   --foreground: oklch(0.24 0.045 268);
 
@@ -73,6 +73,42 @@
   --border: oklch(0.92 0.01 270);
   --input: oklch(0.92 0.01 270);
   --ring: oklch(0.55 0.21 283);
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* Soft dark — charcoal with a subtle violet undertone */
+  --background: oklch(0.24 0.022 265);
+  --foreground: oklch(0.93 0.012 265);
+
+  --card: oklch(0.28 0.028 265);
+  --card-foreground: oklch(0.93 0.012 265);
+
+  --popover: oklch(0.3 0.028 265);
+  --popover-foreground: oklch(0.93 0.012 265);
+
+  --primary: oklch(0.62 0.21 283);
+  --primary-foreground: oklch(0.99 0.005 285);
+
+  --secondary: oklch(0.32 0.03 270);
+  --secondary-foreground: oklch(0.92 0.01 270);
+
+  --muted: oklch(0.3 0.025 270);
+  --muted-foreground: oklch(0.7 0.025 270);
+
+  --accent: oklch(0.34 0.05 285);
+  --accent-foreground: oklch(0.9 0.06 285);
+
+  --destructive: oklch(0.62 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --success: oklch(0.68 0.14 155);
+  --success-foreground: oklch(0.99 0 0);
+
+  --border: oklch(0.36 0.028 270);
+  --input: oklch(0.36 0.028 270);
+  --ring: oklch(0.62 0.21 283);
 }
 
 @layer base {
@@ -130,8 +166,36 @@
   animation: message-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+@keyframes discovery-pop {
+  0% { transform: scale(0.92); opacity: 0.6; }
+  50% { transform: scale(1.06); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes discovery-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes discovery-glow {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.55 0.21 283 / 0.25); }
+  50% { box-shadow: 0 0 12px 2px oklch(0.55 0.21 283 / 0.35); }
+}
+@keyframes discovery-sparkle {
+  0% { transform: scale(0) rotate(0deg); opacity: 1; }
+  100% { transform: scale(1.2) rotate(180deg); opacity: 0; }
+}
+
+.animate-discovery-pop {
+  animation: discovery-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.animate-discovery-bounce {
+  animation: discovery-bounce 1.2s ease-in-out infinite;
+}
+.animate-discovery-glow {
+  animation: discovery-glow 2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-wave, .animate-spin-slow, .animate-ping, .animate-pulse, .animate-fade-up, .animate-message-in {
+  .animate-wave, .animate-spin-slow, .animate-ping, .animate-pulse, .animate-fade-up, .animate-message-in, .animate-discovery-pop, .animate-discovery-bounce, .animate-discovery-glow {
     animation: none !important;
   }
 }

@@ -12,16 +12,39 @@ import { SkilzLogo } from '@/components/skilz/logo'
 import { StartCta } from '@/components/landing/start-cta'
 import { AuthHeaderActions } from '@/components/skilz/auth-header-actions'
 
+const PROBLEMS = [
+  {
+    problem: "I don't know what I'm good at",
+    solution:
+      'SKILZ pulls real stories from your life — not a 50-question quiz — and surfaces patterns you might miss.',
+  },
+  {
+    problem: 'Personality tests feel wrong or too generic',
+    solution:
+      'Every skill is a hypothesis with evidence from your words. Disagree? Remove it. Agree? Prove it with a challenge.',
+  },
+  {
+    problem: 'Career advice ignores my actual experience',
+    solution:
+      'If you\'re exploring careers, SKILZ maps your skills to role paths grounded in what you said — not a four-letter type.',
+  },
+  {
+    problem: 'I never follow through on development plans',
+    solution:
+      'Plans start with one clear next step: validate a skill, complete a challenge, or add more evidence through conversation.',
+  },
+]
+
 const STEPS = [
   {
     icon: Compass,
     title: 'Discover',
-    body: 'Understand your interests, experiences, and potential strengths through conversation.',
+    body: 'Understand your interests and strengths through a guided conversation — not a test score.',
   },
   {
     icon: Target,
     title: 'Validate',
-    body: 'Test potential skills through short, practical challenges.',
+    body: 'Short practical challenges turn self-assessment into real evidence SKILZ can track.',
   },
   {
     icon: Sparkles,
@@ -58,8 +81,8 @@ export default function LandingPage() {
               Discover what you&apos;re capable of.
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-pretty text-base leading-relaxed text-muted-foreground md:text-lg">
-              SKILZ helps you discover your strengths, validate your abilities,
-              and build a personalized path for growth.
+              Stop guessing at your strengths. SKILZ turns your real stories into
+              evidence-backed skills — then helps you validate them and act on them.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <StartCta className="w-full sm:w-auto" />
@@ -100,6 +123,29 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
+        </section>
+
+        {/* Real problems */}
+        <section className="mx-auto w-full max-w-6xl px-5 py-16 md:py-20">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold text-primary">Real problems</p>
+            <h2 className="mt-2 text-balance text-3xl font-bold md:text-4xl">
+              Built for people stuck between &ldquo;I don&apos;t know&rdquo; and &ldquo;what now?&rdquo;
+            </h2>
+          </div>
+          <ul className="mt-10 grid gap-4 sm:grid-cols-2">
+            {PROBLEMS.map((item) => (
+              <li
+                key={item.problem}
+                className="rounded-2xl border border-border bg-card p-6"
+              >
+                <p className="font-display text-base font-bold">{item.problem}</p>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {item.solution}
+                </p>
+              </li>
+            ))}
+          </ul>
         </section>
 
         {/* How it works */}

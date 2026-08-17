@@ -210,10 +210,17 @@ interface AnalyzedSkill {
 
 /** SkillAnalysisService — turns a transcript into evidence-backed hypotheses. */
 export const SkillAnalysisService = {
-  async analyze(transcript: WireMessage[]): Promise<UserSkill[]> {
+  async analyze(
+    transcript: WireMessage[],
+    options?: { candidateSlugs?: string[]; structured?: boolean },
+  ): Promise<UserSkill[]> {
     const { skills } = await postJson<{ skills: AnalyzedSkill[] }>(
       '/api/analyze',
-      { transcript },
+      {
+        transcript,
+        candidateSlugs: options?.candidateSlugs,
+        structured: options?.structured,
+      },
     )
     const now = Date.now()
     return skills.map((s, i) => ({

@@ -36,7 +36,7 @@ const COPY: Record<
 > = {
   login: {
     title: 'Welcome back',
-    subtitle: 'Sign in with Google or a one-time code sent to your email.',
+    subtitle: 'Already signed in? You\'ll go straight to your dashboard. New here? We\'ll send a one-time code.',
     submit: 'Send sign-in code',
     alternate: "Don't have an account?",
     alternateHref: '/signup',
@@ -77,7 +77,7 @@ function resetToEmailStep(setters: {
 
 export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProps) {
   const searchParams = useSearchParams()
-  const { sendOtp, verifyOtp, triesRemaining, authenticated } = useAuth()
+  const { sendOtp, verifyOtp, triesRemaining, authenticated, loading: authLoading } = useAuth()
   const copy = COPY[mode]
 
   const [email, setEmail] = useState('')
@@ -115,6 +115,12 @@ export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProp
     return () => window.clearInterval(timer)
   }, [resendCooldown])
 
+  useEffect(() => {
+    if (!authLoading && authenticated) {
+      onSuccess?.()
+    }
+  }, [authLoading, authenticated, onSuccess])
+
   if (authenticated) return null
 
   function startResendCooldown(seconds = RESEND_COOLDOWN_SEC) {
@@ -134,7 +140,11 @@ export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProp
     setError(null)
 
     try {
-      await sendOtp(trimmed)
+      const alreadySignedIn = await sendOtp(trimmed)
+      if (alreadySignedIn) {
+        onSuccess?.()
+        return
+      }
       setStep('code')
       setSent(true)
       setCode('')

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { SkilzLogo } from '@/components/skilz/logo'
+import { ThemeToggle } from '@/components/skilz/theme-toggle'
 import { useSkilz } from '@/lib/data/store'
 import {
   AGE_RANGES,
@@ -80,9 +81,12 @@ export default function OnboardingPage() {
     <div className="flex min-h-dvh flex-col bg-background">
       <header className="mx-auto flex w-full max-w-lg items-center justify-between px-5 py-5">
         <SkilzLogo />
-        <span className="text-sm text-muted-foreground">
-          Step {step + 1} of {STEPS.length}
-        </span>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <span className="text-sm text-muted-foreground">
+            Step {step + 1} of {STEPS.length}
+          </span>
+        </div>
       </header>
 
       <div className="mx-auto w-full max-w-lg px-5">

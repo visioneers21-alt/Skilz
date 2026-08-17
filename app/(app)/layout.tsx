@@ -1,4 +1,4 @@
-import { DesktopNav, MobileNav } from '@/components/skilz/app-nav'
+import { DesktopNav, MobileHeader, MobileNav } from '@/components/skilz/app-nav'
 import { OnboardGuard } from '@/components/skilz/onboard-guard'
 
 export default function AppLayout({
@@ -10,6 +10,7 @@ export default function AppLayout({
     <OnboardGuard>
       <div className="min-h-dvh bg-background">
         <DesktopNav />
+        <MobileHeader />
         <div className="mx-auto w-full max-w-5xl px-4 pb-24 pt-5 md:px-6 md:pb-12">
           {children}
         </div>

@@ -1,11 +1,15 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useEffect } from 'react'
 import { AuthForm } from '@/components/skilz/auth-form'
 import { useAuth } from '@/lib/auth/auth-context'
 
 export function AuthModal() {
-  const { authModalOpen, closeAuthModal } = useAuth()
+  const { authModalOpen, closeAuthModal, authenticated, loading } = useAuth()
+
+  useEffect(() => {
+    if (!loading && authenticated) closeAuthModal()
+  }, [loading, authenticated, closeAuthModal])
 
   if (!authModalOpen) return null
 

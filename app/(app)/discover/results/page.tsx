@@ -5,10 +5,15 @@ import { useRouter } from 'next/navigation'
 import { ArrowRight, Map, Sparkles, Trophy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SkillCard } from '@/components/skilz/skill-card'
+import { CareerPathsSection } from '@/components/skilz/career-paths-section'
+import { SkillsSnapshotButton } from '@/components/skilz/skills-snapshot-button'
 import { useSkilz } from '@/lib/data/store'
 import { DevelopmentPlanService } from '@/lib/ai/services'
 import { useAuth } from '@/lib/auth/auth-context'
 import { useHandleAuthRequired } from '@/lib/auth/use-handle-auth-required'
+import { suggestCareerPaths, isCareerExplorer } from '@/lib/career/paths'
+import { pickFocusSkill } from '@/lib/recommendations/next-steps'
+import { challengeForSkill } from '@/lib/data/seed'
 import { useEffect, useState } from 'react'
 
 function slugify(name: string) {
@@ -22,7 +27,7 @@ function slugify(name: string) {
 export default function DiscoveryResultsPage() {
   const router = useRouter()
   const { state, setPlan } = useSkilz()
-  const { skills } = state
+  const { profile, skills } = state
   const { refreshSession } = useAuth()
   const handleAuthRequired = useHandleAuthRequired()
   const [buildingPlan, setBuildingPlan] = useState(false)
@@ -37,6 +42,9 @@ export default function DiscoveryResultsPage() {
   const strong = skills.filter((s) => s.category === 'strong')
   const developing = skills.filter((s) => s.category === 'developing')
   const exploring = skills.filter((s) => s.category === 'exploring')
+  const careerPaths = isCareerExplorer(profile.goal) ? suggestCareerPaths(skills) : []
+  const focusSkill = pickFocusSkill(state)
+  const focusChallenge = focusSkill ? challengeForSkill(focusSkill.slug) : null
 
   async function buildPlan() {
     setBuildingPlan(true)
@@ -63,6 +71,7 @@ export default function DiscoveryResultsPage() {
           status: 'todo',
         })),
       )
+      void refreshSession()
       router.push('/plan')
     } catch (err) {
       setBuildingPlan(false)
@@ -81,9 +90,12 @@ export default function DiscoveryResultsPage() {
           Here&apos;s what stood out from your conversation
         </h1>
         <p className="mx-auto mt-3 max-w-lg text-pretty text-sm leading-relaxed text-muted-foreground md:text-base">
-          These are hypotheses to explore — not labels. Each one is grounded in
-          what you said and ready to test through challenges.
+          These are hypotheses grounded in what you said — not personality labels.
+          Disagree with any? Remove it. Agree? Validate it with a quick challenge.
         </p>
+        <div className="mt-4 flex justify-center">
+          <SkillsSnapshotButton profile={profile} skills={skills} />
+        </div>
       </header>
 
       {strong.length > 0 && (
@@ -125,11 +137,14 @@ export default function DiscoveryResultsPage() {
         </section>
       )}
 
+      {careerPaths.length > 0 && <CareerPathsSection paths={careerPaths} />}
+
       <section className="rounded-3xl border border-border bg-card p-6 md:p-8">
         <h2 className="font-display text-lg font-bold">What&apos;s next?</h2>
         <p className="mt-2 max-w-md text-sm text-muted-foreground">
-          Validate a skill with a quick challenge, or let SKILZ build a plan
-          around your top strengths.
+          {focusChallenge && focusSkill
+            ? `Best move: validate "${focusSkill.name}" with "${focusChallenge.title}" — real proof beats guessing.`
+            : 'Explore your skills, export a snapshot, or build a plan around your strengths.'}
         </p>
         {planError && (
           <p role="alert" className="mt-4 text-sm text-destructive">
@@ -137,9 +152,17 @@ export default function DiscoveryResultsPage() {
           </p>
         )}
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <Button asChild size="lg" className="flex-1">
+          {focusChallenge && (
+            <Button asChild size="lg" className="flex-1">
+              <Link href={`/challenge/${focusChallenge.slug}`}>
+                <Trophy className="size-4" />
+                Validate {focusSkill?.name}
+              </Link>
+            </Button>
+          )}
+          <Button asChild size="lg" variant={focusChallenge ? 'outline' : 'default'} className="flex-1">
             <Link href="/skills">
-              Explore my skills
+              Review evidence
               <ArrowRight className="size-4" />
             </Link>
           </Button>
@@ -154,12 +177,6 @@ export default function DiscoveryResultsPage() {
             {buildingPlan ? 'Building plan…' : 'Build my plan'}
           </Button>
         </div>
-        <Button asChild variant="ghost" size="sm" className="mt-3 w-full">
-          <Link href="/dashboard">
-            <Trophy className="size-4" />
-            Try a challenge from home
-          </Link>
-        </Button>
       </section>
     </div>
   )

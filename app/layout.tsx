@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Inter, Plus_Jakarta_Sans } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
+import { ThemeProvider } from '@/components/theme-provider'
 import { SkilzProvider } from '@/lib/data/store'
 import { AuthProvider } from '@/lib/auth/auth-context'
 import { AuthModal } from '@/components/skilz/auth-modal'
@@ -28,8 +29,11 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light',
-  themeColor: '#ffffff',
+  colorScheme: 'light dark',
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)', color: '#2d2f3a' },
+    { color: '#f8f7fc' },
+  ],
   width: 'device-width',
   initialScale: 1,
 }
@@ -40,15 +44,17 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${jakarta.variable} bg-background`}>
-      <body className="font-sans antialiased">
-        <SkilzProvider>
-          <AuthProvider>
-            {children}
-            <AuthModal />
-          </AuthProvider>
-        </SkilzProvider>
-        <Toaster position="top-center" />
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${jakarta.variable}`}>
+      <body className="min-h-dvh bg-background font-sans antialiased">
+        <ThemeProvider>
+          <SkilzProvider>
+            <AuthProvider>
+              {children}
+              <AuthModal />
+            </AuthProvider>
+          </SkilzProvider>
+          <Toaster position="top-center" />
+        </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

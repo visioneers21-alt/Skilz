@@ -12,8 +12,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { SkillRow } from '@/components/skilz/skill-card'
 import { JourneyStrip } from '@/components/skilz/journey-strip'
+import { NextStepCard } from '@/components/skilz/next-step-card'
 import { useSkilz } from '@/lib/data/store'
-import { challengeForSkill, CHALLENGES } from '@/lib/data/seed'
+import { challengeForSkill } from '@/lib/data/seed'
+import { getPrimaryNextStep, pickFocusSkill } from '@/lib/recommendations/next-steps'
 
 function greeting() {
   const h = new Date().getHours()
@@ -26,13 +28,14 @@ export default function DashboardPage() {
   const { state } = useSkilz()
   const { profile, skills, discoveryComplete, attempts } = state
 
-  const strengths = skills.filter((s) => s.category === 'strong').slice(0, 4)
-  const displayed = strengths.length ? strengths : skills.slice(0, 4)
-
-  const focusSkill = skills[0]
+  const nextStep = getPrimaryNextStep(state)
+  const focusSkill = pickFocusSkill(state)
   const todaysChallenge = focusSkill
     ? challengeForSkill(focusSkill.slug)
-    : CHALLENGES[0]
+    : null
+
+  const strengths = skills.filter((s) => s.category === 'strong').slice(0, 4)
+  const displayed = strengths.length ? strengths : skills.slice(0, 4)
 
   return (
     <div className="space-y-6">
@@ -41,65 +44,19 @@ export default function DashboardPage() {
           {greeting()}, {profile.name} 👋
         </h1>
         <p className="mt-1 text-muted-foreground">
-          Let&apos;s continue discovering what you&apos;re capable of.
+          {discoveryComplete
+            ? 'One clear next step — grounded in what you actually said.'
+            : 'Most people guess at their strengths. You can find yours with real stories.'}
         </p>
       </header>
 
-      {/* Continue discovery */}
-      <section className="overflow-hidden rounded-3xl bg-primary text-primary-foreground">
-        <div className="relative p-6 md:p-8">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-primary-foreground/10 blur-2xl"
-          />
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-foreground/15 px-3 py-1 text-xs font-semibold">
-            <Sparkles className="size-3.5" />
-            {discoveryComplete ? 'Discovery complete' : 'Start here'}
-          </span>
-          <h2 className="mt-4 max-w-md text-balance text-xl font-bold text-primary-foreground md:text-2xl">
-            {discoveryComplete
-              ? 'Keep exploring — SKILZ has more to uncover.'
-              : 'Your skills discovery journey is ready to begin.'}
-          </h2>
-          <p className="mt-2 max-w-md text-sm text-primary-foreground/80">
-            {discoveryComplete
-              ? 'Pick up the conversation or dive into a challenge to strengthen your evidence.'
-              : 'Have a natural conversation with SKILZ. No right answers — just tell it about you.'}
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Button
-              asChild
-              size="lg"
-              className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
-            >
-              <Link href="/discover">
-                <Mic className="size-4" />
-                Talk to SKILZ
-              </Link>
-            </Button>
-            {discoveryComplete && (
-              <Button
-                asChild
-                size="lg"
-                variant="ghost"
-                className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
-              >
-                <Link href="/skills">
-                  View my skills
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-            )}
-          </div>
-        </div>
-      </section>
+      <NextStepCard step={nextStep} />
 
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Current strengths */}
         <section className="rounded-2xl border border-border bg-card p-5">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-base font-bold">
-              Current strengths
+              Evidence so far
             </h2>
             {skills.length > 0 && (
               <Link
@@ -110,6 +67,9 @@ export default function DashboardPage() {
               </Link>
             )}
           </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Hypotheses from your conversation — validate with challenges to strengthen them.
+          </p>
           {displayed.length > 0 ? (
             <div className="mt-3 flex flex-col">
               {displayed.map((skill) => (
@@ -119,8 +79,8 @@ export default function DashboardPage() {
           ) : (
             <div className="mt-4 rounded-xl border border-dashed border-border p-5 text-center">
               <p className="text-sm text-muted-foreground">
-                No strengths identified yet. Talk to SKILZ to discover your
-                potential.
+                No skills yet. A 10-minute conversation with SKILZ surfaces patterns
+                you might not see yourself.
               </p>
               <Button asChild variant="outline" size="sm" className="mt-3">
                 <Link href="/discover">Start discovering</Link>
@@ -129,42 +89,69 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* Today's challenge */}
-        <section className="flex flex-col rounded-2xl border border-border bg-card p-5">
-          <div className="flex items-center gap-2">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-              <Trophy className="size-4.5" />
-            </span>
-            <h2 className="font-display text-base font-bold">
-              Today&apos;s challenge
-            </h2>
-          </div>
-          <p className="mt-4 text-balance font-display text-lg font-bold">
-            {todaysChallenge.title}
-          </p>
-          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            {todaysChallenge.prompt}
-          </p>
-          <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Clock className="size-3.5" />
-            {todaysChallenge.estimatedTime}
-            {attempts.length > 0 && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>{attempts.length} completed so far</span>
-              </>
-            )}
-          </div>
-          <Button asChild className="mt-auto pt-0.5" size="lg">
-            <Link href={`/challenge/${todaysChallenge.slug}`}>
-              Start challenge
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-        </section>
+        {todaysChallenge && (
+          <section className="flex flex-col rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-center gap-2">
+              <span className="flex size-9 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+                <Trophy className="size-4.5" />
+              </span>
+              <div>
+                <h2 className="font-display text-base font-bold">
+                  Validate a skill
+                </h2>
+                {focusSkill && (
+                  <p className="text-xs text-muted-foreground">
+                    Testing: {focusSkill.name}
+                  </p>
+                )}
+              </div>
+            </div>
+            <p className="mt-4 text-balance font-display text-lg font-bold">
+              {todaysChallenge.title}
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+              {todaysChallenge.prompt}
+            </p>
+            <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Clock className="size-3.5" />
+              {todaysChallenge.estimatedTime}
+              {attempts.length > 0 && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{attempts.length} completed</span>
+                </>
+              )}
+            </div>
+            <Button asChild className="mt-auto pt-0.5" size="lg">
+              <Link href={`/challenge/${todaysChallenge.slug}`}>
+                Start challenge
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </section>
+        )}
       </div>
 
-      {/* Growth journey */}
+      {discoveryComplete && (
+        <section className="rounded-2xl border border-dashed border-border bg-muted/30 p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-display text-base font-bold">Go deeper</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Skill discovery isn&apos;t one-and-done. Another session adds evidence
+                and refines your profile — previous skills are merged, not replaced.
+              </p>
+            </div>
+            <Button asChild variant="outline">
+              <Link href="/discover">
+                <Mic className="size-4" />
+                Continue discovery
+              </Link>
+            </Button>
+          </div>
+        </section>
+      )}
+
       <section className="rounded-2xl border border-border bg-card p-5">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-base font-bold">Growth journey</h2>

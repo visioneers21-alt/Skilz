@@ -11,7 +11,7 @@ export interface SessionUser {
   email: string
 }
 
-async function lookupSession(token: string): Promise<SessionUser | null> {
+async function lookupSession(token: string, touch = false): Promise<SessionUser | null> {
   if (!db) return null
   try {
     const tokenHash = hashValue(token)
@@ -34,6 +34,15 @@ async function lookupSession(token: string): Promise<SessionUser | null> {
       return null
     }
 
+    if (touch) {
+      const newExpiresAt = new Date(Date.now() + SESSION_TTL_MS)
+      await db
+        .update(authSessions)
+        .set({ expiresAt: newExpiresAt })
+        .where(eq(authSessions.tokenHash, tokenHash))
+      await setSessionCookie(token)
+    }
+
     return { id: row.userId, email: row.email }
   } catch (err) {
     console.error('[skilz] session lookup failed:', err)
@@ -44,16 +53,26 @@ async function lookupSession(token: string): Promise<SessionUser | null> {
 export async function getSessionUser(): Promise<SessionUser | null> {
   const token = await getSessionToken()
   if (!token) return null
-  return lookupSession(token)
+  return lookupSession(token, true)
 }
 
 export async function getSessionUserFromToken(token: string | null): Promise<SessionUser | null> {
   if (!token) return null
-  return lookupSession(token)
+  return lookupSession(token, false)
 }
 
 export async function createSession(userId: string): Promise<void> {
   if (!db) throw new Error('Database not connected')
+
+  const existingToken = await getSessionToken()
+  if (existingToken) {
+    const existing = await lookupSession(existingToken, false)
+    if (existing?.id === userId) {
+      await lookupSession(existingToken, true)
+      return
+    }
+  }
+
   const token = randomToken()
   const tokenHash = hashValue(token)
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS)

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { isDatabaseConnected } from '@/lib/db'
 import { verifyOtp } from '@/lib/auth/otp'
-import { createSession, findOrCreateUser } from '@/lib/auth/session'
+import { createSession, findOrCreateUser, getSessionUser } from '@/lib/auth/session'
 
 const RequestSchema = z.object({
   email: z.string().email(),
@@ -29,6 +29,11 @@ export async function POST(req: Request) {
   const code = parsed.data.code.trim()
 
   try {
+    const sessionUser = await getSessionUser()
+    if (sessionUser?.email === email) {
+      return Response.json({ ok: true, email, alreadyAuthenticated: true })
+    }
+
     const valid = await verifyOtp(email, code)
     if (!valid) {
       return Response.json({ error: 'Invalid or expired code' }, { status: 401 })

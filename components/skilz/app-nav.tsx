@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Home, Compass, Layers, Map, User, Mic, LogIn, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SkilzLogo } from '@/components/skilz/logo'
+import { ThemeToggle } from '@/components/skilz/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth/auth-context'
 
@@ -50,6 +51,7 @@ export function DesktopNav() {
           })}
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle />
           {!loading && authenticated && email && (
             <>
               <span className="max-w-[140px] truncate text-sm text-muted-foreground">
@@ -77,6 +79,14 @@ export function DesktopNav() {
           </Button>
         </div>
       </div>
+    </header>
+  )
+}
+
+export function MobileHeader() {
+  return (
+    <header className="sticky top-0 z-20 flex items-center justify-end border-b border-border bg-background/95 px-4 py-2 backdrop-blur md:hidden">
+      <ThemeToggle />
     </header>
   )
 }

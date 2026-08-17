@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { LogIn, LayoutDashboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/skilz/theme-toggle'
 import { useAuth } from '@/lib/auth/auth-context'
 
 export function AuthHeaderActions() {
@@ -13,6 +14,7 @@ export function AuthHeaderActions() {
   if (authenticated) {
     return (
       <div className="flex items-center gap-2">
+        <ThemeToggle />
         {email && (
           <span className="hidden text-sm text-muted-foreground sm:inline">{email}</span>
         )}
@@ -28,6 +30,7 @@ export function AuthHeaderActions() {
 
   return (
     <div className="flex items-center gap-2">
+      <ThemeToggle />
       <Button asChild variant="ghost" size="sm">
         <Link href="/login">
           <LogIn className="size-4" />

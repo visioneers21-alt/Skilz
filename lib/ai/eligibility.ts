@@ -2,9 +2,11 @@
 // and helpers to clean voice transcripts before they reach the AI.
 
 export const MIN_USER_EXCHANGES = 5
+/** Structured discovery asks this many multiple-choice questions. */
+export const STRUCTURED_DISCOVERY_QUESTIONS = 20
 export const MIN_TOTAL_USER_WORDS = 80
-export const MIN_ANSWER_WORDS = 8
-export const MIN_VOICE_ANSWER_WORDS = 3
+export const MIN_ANSWER_WORDS = 1
+export const MIN_VOICE_ANSWER_WORDS = 1
 export const MIN_CHALLENGE_WORDS = 25
 export const MIN_CONFIDENCE_SCORE = 0.35
 export const MIN_STRONG_CONFIDENCE = 0.65
@@ -49,6 +51,24 @@ export function normalizeSpeechText(text: string): string {
     .trim()
 }
 
+export function assessStructuredDiscoveryEligibility(
+  answerCount: number,
+): EligibilityResult {
+  const missing: string[] = []
+  if (answerCount < STRUCTURED_DISCOVERY_QUESTIONS) {
+    missing.push(
+      `${STRUCTURED_DISCOVERY_QUESTIONS - answerCount} more question${STRUCTURED_DISCOVERY_QUESTIONS - answerCount === 1 ? '' : 's'}`,
+    )
+  }
+  return {
+    eligible: missing.length === 0,
+    userTurns: answerCount,
+    totalUserWords: answerCount * 8,
+    avgWordsPerTurn: answerCount > 0 ? 8 : 0,
+    missing,
+  }
+}
+
 export function assessTranscriptEligibility(
   messages: WireMessage[],
 ): EligibilityResult {
@@ -66,9 +86,6 @@ export function assessTranscriptEligibility(
   }
   if (totalUserWords < MIN_TOTAL_USER_WORDS) {
     missing.push(`about ${MIN_TOTAL_USER_WORDS - totalUserWords} more words of detail`)
-  }
-  if (userTurns >= 3 && avgWordsPerTurn < 12) {
-    missing.push('more specific stories (not one-word replies)')
   }
 
   return {
@@ -96,8 +113,8 @@ export function assessAnswerEligibility(
       eligible: false,
       words,
       message: options?.voice
-        ? `Say a bit more (${minWords}+ words helps SKILZ understand you).`
-        : `Share a bit more detail (${minWords}+ words helps SKILZ understand you).`,
+        ? 'Say at least one word so SKILZ can respond.'
+        : 'Type at least one word so SKILZ can respond.',
     }
   }
   return { eligible: true, words, message: null }

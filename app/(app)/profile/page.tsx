@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Mic, MessageSquare, RotateCcw, User, LogOut, Mail } from 'lucide-react'
+import { Mic, MessageSquare, RotateCcw, User, LogOut, Mail, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator'
 import { useSkilz } from '@/lib/data/store'
 import { useAuth } from '@/lib/auth/auth-context'
 import { GUEST_TRY_LIMIT } from '@/lib/auth/constants'
+import { ThemeToggle } from '@/components/skilz/theme-toggle'
 import { cn } from '@/lib/utils'
 
 export default function ProfilePage() {
@@ -102,6 +103,20 @@ export default function ProfilePage() {
             <MessageSquare className="size-4 shrink-0" />
             Text first
           </button>
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
+        <h2 className="font-display text-base font-bold">Appearance</h2>
+        <p className="text-sm text-muted-foreground">
+          Switch between light and dark mode. Your choice is saved on this device.
+        </p>
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Sun className="size-4 shrink-0 text-muted-foreground" />
+            <span className="text-sm font-medium">Theme</span>
+          </div>
+          <ThemeToggle />
         </div>
       </section>
 

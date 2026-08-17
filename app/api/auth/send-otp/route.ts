@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { isDatabaseConnected } from '@/lib/db'
 import { createAndSendOtp, isValidEmail, OtpResendCooldownError } from '@/lib/auth/otp'
+import { getSessionUser } from '@/lib/auth/session'
 import { isBrevoConfigured } from '@/lib/email/brevo'
 
 const RequestSchema = z.object({
@@ -27,8 +28,19 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Enter a valid email address' }, { status: 400 })
   }
 
+  const email = parsed.data.email.trim().toLowerCase()
+
+  const sessionUser = await getSessionUser()
+  if (sessionUser) {
+    return Response.json({
+      ok: true,
+      alreadyAuthenticated: true,
+      email: sessionUser.email,
+    })
+  }
+
   try {
-    await createAndSendOtp(parsed.data.email)
+    await createAndSendOtp(email)
     return Response.json({ ok: true })
   } catch (err) {
     if (err instanceof OtpResendCooldownError) {

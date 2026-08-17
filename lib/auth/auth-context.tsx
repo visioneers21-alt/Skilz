@@ -34,7 +34,7 @@ interface AuthContextValue extends AuthStatus {
   openAuthModal: () => void
   closeAuthModal: () => void
   refreshSession: () => Promise<void>
-  sendOtp: (email: string) => Promise<void>
+  sendOtp: (email: string) => Promise<boolean>
   verifyOtp: (email: string, code: string) => Promise<void>
   logout: () => Promise<void>
 }
@@ -73,24 +73,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const openAuthModal = useCallback(() => setAuthModalOpen(true), [])
   const closeAuthModal = useCallback(() => setAuthModalOpen(false), [])
 
-  const sendOtp = useCallback(async (email: string) => {
+  const sendOtp = useCallback(async (email: string): Promise<boolean> => {
     const res = await fetch('/api/auth/send-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ email }),
     })
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: string
+      retryAfterSeconds?: number
+      alreadyAuthenticated?: boolean
+    }
+    if (data.alreadyAuthenticated) {
+      await refreshSession()
+      return true
+    }
     if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string
-        retryAfterSeconds?: number
-      }
       throw new SendOtpError(
         data.error || 'Could not send code',
         data.retryAfterSeconds,
       )
     }
-  }, [])
+    return false
+  }, [refreshSession])
 
   const verifyOtp = useCallback(
     async (email: string, code: string) => {
@@ -100,8 +106,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: 'include',
         body: JSON.stringify({ email, code }),
       })
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        alreadyAuthenticated?: boolean
+      }
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
         throw new Error(data.error || 'Invalid code')
       }
       await refreshSession()

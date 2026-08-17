@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRight, Clock, Trophy } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Clock, MessageSquareQuote, Trophy, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -15,11 +15,12 @@ import {
   STAGE_ORDER,
   challengeForSkill,
 } from '@/lib/data/seed'
+import { findEvidenceSource } from '@/lib/data/evidence-source'
 
 export default function SkillDetailPage() {
   const params = useParams<{ slug: string }>()
   const router = useRouter()
-  const { state } = useSkilz()
+  const { state, dismissSkill } = useSkilz()
   const skill = state.skills.find((s) => s.slug === params.slug)
 
   if (!skill) {
@@ -36,6 +37,11 @@ export default function SkillDetailPage() {
   const challenge = challengeForSkill(skill.slug)
   const stageIndex = STAGE_ORDER.indexOf(skill.stage)
   const stageProgress = ((stageIndex + 1) / STAGE_ORDER.length) * 100
+
+  function handleDismiss() {
+    dismissSkill(skill.slug)
+    router.push('/skills')
+  }
 
   return (
     <div className="space-y-6">
@@ -60,9 +66,21 @@ export default function SkillDetailPage() {
               <ConfidenceLabel confidence={skill.confidence} />
             </div>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={handleDismiss}
+          >
+            <X className="size-4" />
+            Not for me
+          </Button>
         </div>
         <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
           {skill.reasoning}
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          SKILZ suggests this based on your stories — you know yourself best. Remove it if it doesn&apos;t fit.
         </p>
       </header>
 
@@ -83,20 +101,36 @@ export default function SkillDetailPage() {
       {skill.evidence.length > 0 && (
         <section>
           <h2 className="font-display text-base font-bold">
-            Evidence from your conversation
+            Evidence from your stories
           </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Direct signals from what you said — not generic traits.
+          </p>
           <ul className="mt-3 space-y-2">
-            {skill.evidence.map((ev) => (
-              <li
-                key={ev.id}
-                className="rounded-xl border border-border bg-card px-4 py-3 text-sm leading-relaxed"
-              >
-                {ev.text}
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  From {ev.source === 'conversation' ? 'discovery' : 'challenge'}
-                </span>
-              </li>
-            ))}
+            {skill.evidence.map((ev) => {
+              const source = findEvidenceSource(ev.text, state.conversation)
+              return (
+                <li
+                  key={ev.id}
+                  className="rounded-xl border border-border bg-card px-4 py-3 text-sm leading-relaxed"
+                >
+                  <span className="flex items-start gap-2">
+                    <MessageSquareQuote className="mt-0.5 size-4 shrink-0 text-primary/70" />
+                    <span>{ev.text}</span>
+                  </span>
+                  <span className="mt-2 block text-xs text-muted-foreground">
+                    From {ev.source === 'conversation' ? 'discovery' : 'challenge'}
+                    {source && (
+                      <>
+                        {' '}
+                        · &ldquo;{source.content.slice(0, 80)}
+                        {source.content.length > 80 ? '…' : ''}&rdquo;
+                      </>
+                    )}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
         </section>
       )}
@@ -121,10 +155,13 @@ export default function SkillDetailPage() {
         <div className="flex items-center gap-2">
           <Trophy className="size-5 text-primary" />
           <h2 className="font-display text-base font-bold">
-            Test this skill
+            Put it to the test
           </h2>
         </div>
-        <p className="mt-2 font-display text-lg font-bold">{challenge.title}</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Self-assessment is unreliable. A 3-minute challenge gives SKILZ real evidence to update this skill.
+        </p>
+        <p className="mt-3 font-display text-lg font-bold">{challenge.title}</p>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
           {challenge.prompt}
         </p>

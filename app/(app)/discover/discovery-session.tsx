@@ -1,310 +1,154 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Sparkles } from "lucide-react"
+import { Rocket, Sparkles, PartyPopper } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ChatComposer } from "@/components/skilz/chat-composer"
-import { ChatHeroMessage, ChatMessage, ChatTypingIndicator } from "@/components/skilz/chat-message"
 import { ChatSessionHeader } from "@/components/skilz/chat-session-header"
-import { ListeningOrb } from "@/components/skilz/listening-orb"
-import { useVoice } from "@/lib/voice/use-voice"
-import { AIConversationService, SkillAnalysisService, type WireMessage } from "@/lib/ai/services"
-import { StreamSpeaker } from "@/lib/voice/stream-speak"
+import { DiscoveryCelebration } from "@/components/skilz/discovery-celebration"
+import { DiscoveryChoices } from "@/components/skilz/discovery-choices"
+import { DiscoveryMascot } from "@/components/skilz/discovery-mascot"
+import { DiscoveryQuestMap } from "@/components/skilz/discovery-quest-map"
+import { DiscoverySkillRadar } from "@/components/skilz/discovery-skill-radar"
+import { DiscoveryStickerBook } from "@/components/skilz/discovery-sticker-book"
+import { SkillAnalysisService } from "@/lib/ai/services"
+import { EligibilityError } from "@/lib/ai/eligibility"
+import { DISCOVERY_QUESTION_COUNT } from "@/lib/discovery/questions"
 import {
-  MIN_USER_EXCHANGES,
-  assessAnswerEligibility,
-  assessTranscriptEligibility,
-  normalizeSpeechText,
-  EligibilityError,
-  type EligibilityResult,
-} from "@/lib/ai/eligibility"
+  applyDiscoveryAnswer,
+  buildDiscoveryTranscript,
+  createDiscoveryState,
+  discoveryProgress,
+  getCandidateSlugsForAnalysis,
+  getCurrentQuestion,
+  isDiscoveryComplete,
+  type DiscoveryEngineState,
+} from "@/lib/discovery/engine"
+import {
+  getIntroLines,
+  getMilestoneMessage,
+  getOptionUi,
+  getQuestionUi,
+  randomCheer,
+} from "@/lib/discovery/presentation"
 import { useSkilz } from "@/lib/data/store"
 import { useAuth } from "@/lib/auth/auth-context"
 import { useHandleAuthRequired } from "@/lib/auth/use-handle-auth-required"
 import type { Message } from "@/lib/data/types"
 
-type OrbState = "idle" | "listening" | "thinking" | "speaking"
-
-const MIN_EXCHANGES = MIN_USER_EXCHANGES
-
-function uid() {
-  return `m_${Math.random().toString(36).slice(2, 9)}`
+function engineToMessages(state: DiscoveryEngineState, name?: string): Message[] {
+  const wire = buildDiscoveryTranscript(state, name ? { name } : undefined)
+  const now = Date.now()
+  return wire.map((m, i) => ({
+    id: `m_${i}`,
+    role: m.role,
+    content: m.content,
+    createdAt: now + i,
+  }))
 }
-
-let discoverRequestInflight = false
 
 export function DiscoverySession() {
   const router = useRouter()
   const { state, setConversation, saveSkills } = useSkilz()
   const { profile } = state
-  const prefersVoice = profile.interactionPreference === "voice"
   const { refreshSession } = useAuth()
   const handleAuthRequired = useHandleAuthRequired()
-  const voice = useVoice()
 
-  const [orbState, setOrbState] = useState<OrbState>("idle")
-  const [messages, setMessages] = useState<Message[]>(state.conversation)
-  const [textValue, setTextValue] = useState("")
-  const [showTranscript, setShowTranscript] = useState(!prefersVoice)
-  const [muted, setMuted] = useState(!prefersVoice)
-  const [error, setError] = useState<string | null>(null)
+  const [started, setStarted] = useState(false)
+  const [engine, setEngine] = useState<DiscoveryEngineState>(() =>
+    createDiscoveryState({ interests: profile.interests }),
+  )
   const [analyzing, setAnalyzing] = useState(false)
-  const [readyToConclude, setReadyToConclude] = useState(false)
-  const [eligibility, setEligibility] = useState<EligibilityResult | null>(null)
-  const [streamingReply, setStreamingReply] = useState<string | null>(null)
-  const [ttsActive, setTtsActive] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [celebration, setCelebration] = useState<{ message: string; emoji: string } | null>(null)
+  const [mascotMood, setMascotMood] = useState<"idle" | "excited" | "thinking" | "celebrate">("idle")
+  const [questionKey, setQuestionKey] = useState(0)
 
-  const transcriptEndRef = useRef<HTMLDivElement>(null)
-  const startedRef = useRef(false)
-  const streamSpeakerRef = useRef<StreamSpeaker | null>(null)
-  const isStreamingRef = useRef(false)
-  const mutedRef = useRef(muted)
-  const autoListenTimerRef = useRef<number | null>(null)
+  const question = getCurrentQuestion(engine)
+  const complete = isDiscoveryComplete(engine)
+  const progress = discoveryProgress(engine)
+  const intro = getIntroLines(profile.name)
 
-  useEffect(() => {
-    streamSpeakerRef.current = new StreamSpeaker()
-    return () => {
-      streamSpeakerRef.current?.cancel()
-      if (autoListenTimerRef.current) window.clearTimeout(autoListenTimerRef.current)
-    }
-  }, [])
+  const q20Labels = question?.id === "q20-identity" ? question.options.map((o) => o.label) : undefined
+  const questionUi = question ? getQuestionUi(question.id, q20Labels) : null
 
   useEffect(() => {
-    mutedRef.current = muted
-  }, [muted])
+    setConversation(engineToMessages(engine, profile.name))
+  }, [engine, profile.name, setConversation])
 
-  const stopAiSpeech = useCallback(() => {
-    streamSpeakerRef.current?.cancel()
-    voice.cancelSpeak()
-    setTtsActive(false)
-  }, [voice])
+  useEffect(() => {
+    if (!celebration) return
+    const t = window.setTimeout(() => setCelebration(null), 1400)
+    return () => window.clearTimeout(t)
+  }, [celebration])
 
-  const toWire = useCallback(
-    (list: Message[]): WireMessage[] =>
-      list.map((m) => ({
-        role: m.role,
-        content: m.role === "user" ? normalizeSpeechText(m.content) : m.content,
-      })),
-    [],
-  )
+  const progressPct = (progress.answered / DISCOVERY_QUESTION_COUNT) * 100
 
-  const userExchanges = messages.filter((m) => m.role === "user").length
-  const localEligibility = assessTranscriptEligibility(toWire(messages))
-  const canAnalyze = (eligibility?.eligible ?? localEligibility.eligible) && userExchanges >= MIN_EXCHANGES
+  const mascotMessage = useMemo(() => {
+    if (complete) return "You did it! Ready to see your superpowers?"
+    if (pending) return "Locking in your pick…"
+    if (questionUi) return questionUi.mascotLine
+    return "Let's find your hidden strengths!"
+  }, [complete, pending, questionUi])
 
-  const isThinking = orbState === "thinking"
-  const isSpeaking = orbState === "speaking" || ttsActive
+  const choices = useMemo(() => {
+    if (!question || !questionUi) return []
+    return question.options.map((opt) => ({
+      id: opt.id,
+      ui: getOptionUi(question.id, opt.id, opt.label, q20Labels),
+    }))
+  }, [question, questionUi, q20Labels])
 
-  const beginListening = useCallback(async () => {
-    if (!voice.recognitionSupported) {
-      setError("Voice input isn't available in this browser. You can type your answer instead.")
-      return false
-    }
+  const handleSelect = useCallback(
+    (optionId: string) => {
+      if (!question || pending || complete) return
+      const option = question.options.find((o) => o.id === optionId)
+      if (!option) return
 
-    stopAiSpeech()
-    voice.reset()
-    setOrbState("listening")
-    const started = await voice.start()
-    if (!started) setOrbState("idle")
-    return started
-  }, [voice, stopAiSpeech])
-
-  const scheduleAutoListen = useCallback(() => {
-    if (!prefersVoice || mutedRef.current || !voice.recognitionSupported) return
-    if (autoListenTimerRef.current) window.clearTimeout(autoListenTimerRef.current)
-    autoListenTimerRef.current = window.setTimeout(() => {
-      autoListenTimerRef.current = null
-      if (mutedRef.current || isStreamingRef.current) return
-      void beginListening()
-    }, 450)
-  }, [prefersVoice, voice.recognitionSupported, beginListening])
-
-  const finishStreaming = useCallback(
-    (reply: string) => {
-      const msg: Message = { id: uid(), role: "assistant", content: reply, createdAt: Date.now() }
-      setMessages((prev) => [...prev, msg])
-      setStreamingReply(null)
-      discoverRequestInflight = false
-      isStreamingRef.current = false
-
-      if (mutedRef.current || !voice.synthesisSupported) {
-        setOrbState("idle")
-        setTtsActive(false)
-        streamSpeakerRef.current?.reset()
-        scheduleAutoListen()
-        return
-      }
-
-      setOrbState("speaking")
-      setTtsActive(true)
-      streamSpeakerRef.current!.flush(reply, () => {
-        setOrbState("idle")
-        setTtsActive(false)
-        scheduleAutoListen()
-      })
-    },
-    [voice.synthesisSupported, scheduleAutoListen],
-  )
-
-  const requestNext = useCallback(
-    async (history: Message[]) => {
-      if (discoverRequestInflight || isStreamingRef.current) return
-      discoverRequestInflight = true
-      isStreamingRef.current = true
-      setOrbState("thinking")
       setError(null)
-      setStreamingReply(null)
-      autoListenTimerRef.current && window.clearTimeout(autoListenTimerRef.current)
-      autoListenTimerRef.current = null
+      setPending(true)
+      setSelectedId(optionId)
+      setMascotMood("thinking")
 
-      if (voice.listening) {
-        voice.stop()
-        voice.reset()
-      }
+      window.setTimeout(() => {
+        setEngine((prev) => {
+          const q = getCurrentQuestion(prev)
+          if (!q) return prev
+          const opt = q.options.find((o) => o.id === optionId)
+          if (!opt) return prev
+          return applyDiscoveryAnswer(prev, q, opt)
+        })
 
-      const speaker = streamSpeakerRef.current!
-      speaker.reset()
+        const nextAnswered = engine.questionIndex + 1
+        const milestone = getMilestoneMessage(nextAnswered)
+        setCelebration({
+          message: milestone ?? randomCheer(),
+          emoji: milestone ? "🏅" : "✨",
+        })
+        setMascotMood(milestone ? "celebrate" : "excited")
+        setSelectedId(null)
+        setQuestionKey((k) => k + 1)
+        setPending(false)
 
-      await AIConversationService.streamNext(
-        toWire(history),
-        {
-          name: profile.name,
-          interests: profile.interests,
-          goal: profile.goal,
-        },
-        {
-          onToken: (_token, fullReply) => {
-            setStreamingReply(fullReply)
-            setOrbState("speaking")
-            if (!mutedRef.current && voice.synthesisSupported) {
-              setTtsActive(true)
-              speaker.feed(fullReply)
-            } else {
-              setTtsActive(false)
-            }
-          },
-          onDone: (result) => {
-            if (result.eligibility) setEligibility(result.eligibility)
-            setReadyToConclude(result.readyToConclude)
-            finishStreaming(result.reply)
-            void refreshSession()
-          },
-          onError: async (err) => {
-            discoverRequestInflight = false
-            isStreamingRef.current = false
-            setStreamingReply(null)
-            speaker.cancel()
-            setError(
-              await handleAuthRequired(
-                err,
-                "SKILZ is having trouble responding right now. You can keep going with text.",
-              ),
-            )
-            setOrbState("idle")
-            setTtsActive(false)
-          },
-        },
-      )
+        window.setTimeout(() => setMascotMood("idle"), 800)
+      }, 520)
     },
-    [profile, finishStreaming, refreshSession, handleAuthRequired, toWire, voice, voice.synthesisSupported],
+    [question, pending, complete, engine.questionIndex],
   )
-
-  useEffect(() => {
-    setConversation(messages)
-  }, [messages, setConversation])
-
-  useEffect(() => {
-    if (startedRef.current) return
-    startedRef.current = true
-    if (messages.length === 0) void requestNext([])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, showTranscript, streamingReply])
-
-  const submitUser = useCallback(
-    (content: string, options?: { fromVoice?: boolean }) => {
-      const normalized = normalizeSpeechText(content)
-      const check = assessAnswerEligibility(normalized, { voice: options?.fromVoice })
-      if (!check.eligible) {
-        setError(check.message)
-        if (options?.fromVoice) void beginListening()
-        return
-      }
-      setError(null)
-      autoListenTimerRef.current && window.clearTimeout(autoListenTimerRef.current)
-      autoListenTimerRef.current = null
-      const msg: Message = { id: uid(), role: "user", content: normalized, createdAt: Date.now() }
-      setTextValue("")
-      setMessages((prev) => {
-        const next = [...prev, msg]
-        void requestNext(next)
-        return next
-      })
-    },
-    [requestNext, beginListening],
-  )
-
-  const handleMicToggle = useCallback(async () => {
-    setError(null)
-    if (autoListenTimerRef.current) {
-      window.clearTimeout(autoListenTimerRef.current)
-      autoListenTimerRef.current = null
-    }
-
-    if (voice.listening) {
-      const captured = voice.stopAndCapture().trim()
-      if (captured) {
-        setOrbState("idle")
-        voice.reset()
-        submitUser(captured, { fromVoice: true })
-      } else {
-        // No speech yet — keep the mic open instead of showing an error.
-        await beginListening()
-      }
-      return
-    }
-
-    if (orbState === "speaking" || streamSpeakerRef.current?.isActive()) {
-      stopAiSpeech()
-      setOrbState("idle")
-      const started = await voice.interruptForListening()
-      if (started) setOrbState("listening")
-      return
-    }
-
-    if (isThinking) return
-
-    await beginListening()
-  }, [voice, submitUser, orbState, isThinking, stopAiSpeech, beginListening])
-
-  useEffect(() => {
-    if (voice.permission === "denied") {
-      setOrbState("idle")
-      if (autoListenTimerRef.current) window.clearTimeout(autoListenTimerRef.current)
-      autoListenTimerRef.current = null
-      setError(
-        "Microphone permission was denied. You can type your answer, or enable the mic in your browser settings.",
-      )
-    }
-  }, [voice.permission])
 
   const finish = useCallback(async () => {
-    if (!canAnalyze) {
-      const missing = localEligibility.missing.join(", ")
-      setError(`Keep going — SKILZ needs ${missing || "more detail"} for an accurate read.`)
-      return
-    }
-    if (autoListenTimerRef.current) window.clearTimeout(autoListenTimerRef.current)
-    autoListenTimerRef.current = null
-    voice.stop()
-    stopAiSpeech()
+    if (!complete) return
     setAnalyzing(true)
+    setError(null)
     try {
-      const skills = await SkillAnalysisService.analyze(toWire(messages))
+      const transcript = buildDiscoveryTranscript(engine, { name: profile.name })
+      const candidateSlugs = getCandidateSlugsForAnalysis(engine)
+      const skills = await SkillAnalysisService.analyze(transcript, {
+        candidateSlugs,
+        structured: true,
+      })
       saveSkills(skills)
       void refreshSession()
       router.push("/discover/results")
@@ -314,58 +158,19 @@ export function DiscoverySession() {
         setError(err.message)
         return
       }
-      setError(await handleAuthRequired(err, "We couldn't analyze the conversation. Please try again."))
+      setError(await handleAuthRequired(err, "We couldn't analyze your answers. Please try again."))
     }
-  }, [messages, saveSkills, router, voice, stopAiSpeech, refreshSession, handleAuthRequired, canAnalyze, localEligibility, toWire])
+  }, [engine, profile.name, saveSkills, router, refreshSession, handleAuthRequired, complete])
 
   const handleEnd = useCallback(() => {
-    if (autoListenTimerRef.current) window.clearTimeout(autoListenTimerRef.current)
-    autoListenTimerRef.current = null
-    voice.stop()
-    stopAiSpeech()
-    if (userExchanges >= 2) void finish()
+    if (complete) void finish()
     else router.push("/dashboard")
-  }, [voice, stopAiSpeech, userExchanges, finish, router])
-
-  const handleMuteToggle = useCallback(() => {
-    if (autoListenTimerRef.current) {
-      window.clearTimeout(autoListenTimerRef.current)
-      autoListenTimerRef.current = null
-    }
-    if (muted) {
-      setMuted(false)
-      return
-    }
-    stopAiSpeech()
-    setMuted(true)
-    setOrbState("idle")
-  }, [muted, stopAiSpeech])
-
-  const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant")
-  const displayReply = streamingReply ?? lastAssistant?.content ?? null
-
-  const orbCaption = voice.listening
-    ? voice.liveText || "Start speaking…"
-    : undefined
-
-  const composerHint = voice.listening
-    ? "Tap the mic again to send your answer"
-    : isSpeaking
-      ? "Tap the mic to interrupt and respond"
-      : prefersVoice && !muted
-        ? "The mic opens automatically after SKILZ speaks"
-        : "Use the mic or type below"
-
-  const progressPct = Math.min((userExchanges / MIN_EXCHANGES) * 100, 100)
-  const statusMessage = canAnalyze
-    ? "Enough detail collected — finish when you're ready."
-    : userExchanges > 0 && localEligibility.missing.length > 0
-      ? `Still need: ${localEligibility.missing.join(", ")}.`
-      : undefined
+  }, [complete, finish, router])
 
   if (analyzing) {
     return (
-      <div className="flex min-h-[70vh] flex-col items-center justify-center gap-5 text-center">
+      <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6 text-center px-4">
+        <DiscoveryMascot mood="excited" size="lg" message="Mixing your answers into superpower potions…" />
         <div className="relative flex size-20 items-center justify-center">
           <span className="absolute inset-0 animate-ping rounded-full bg-primary/15" />
           <div className="relative flex size-16 items-center justify-center rounded-full bg-primary/10">
@@ -373,10 +178,38 @@ export function DiscoverySession() {
           </div>
         </div>
         <div className="space-y-2">
-          <h2 className="font-display text-xl font-bold">Finding your patterns…</h2>
+          <h2 className="font-display text-xl font-bold">Almost there…</h2>
           <p className="max-w-xs text-pretty text-sm text-muted-foreground">
-            SKILZ is reviewing your conversation to surface potential strengths.
+            SKILZ is finding the skills that match YOU best.
           </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!started) {
+    return (
+      <div className="mx-auto flex min-h-[calc(100vh-9rem)] max-w-2xl flex-col justify-center gap-6 px-1">
+        <div className="rounded-3xl border border-primary/20 bg-gradient-to-b from-primary/10 via-background to-background p-6 sm:p-8 text-center animate-fade-up">
+          <DiscoveryMascot mood="excited" size="lg" message="Hi! I'm your SKILZ guide. Let's play a quick quest!" />
+          <h1 className="mt-6 font-display text-2xl font-bold capitalize sm:text-3xl">{intro.headline}</h1>
+          <p className="mt-2 text-muted-foreground">{intro.subline}</p>
+          <ul className="mt-6 space-y-3 text-left">
+            {intro.steps.map((step) => (
+              <li key={step.text} className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/60 px-4 py-3 text-sm">
+                <span className="text-2xl" aria-hidden>{step.emoji}</span>
+                <span className="font-medium">{step.text}</span>
+              </li>
+            ))}
+          </ul>
+          <Button
+            size="lg"
+            className="mt-8 h-12 w-full rounded-2xl text-base font-bold sm:w-auto sm:px-10"
+            onClick={() => setStarted(true)}
+          >
+            <Rocket className="mr-2 size-5" />
+            Start the quest!
+          </Button>
         </div>
       </div>
     )
@@ -384,41 +217,88 @@ export function DiscoverySession() {
 
   return (
     <div className="mx-auto flex min-h-[calc(100vh-9rem)] max-w-2xl flex-col">
-      <ChatSessionHeader
-        progress={progressPct}
-        progressLabel={`${Math.min(userExchanges, MIN_EXCHANGES)} / ${MIN_EXCHANGES} answers`}
-        statusMessage={statusMessage}
-        statusTone={canAnalyze ? "primary" : "muted"}
-        onEnd={handleEnd}
-        badge={prefersVoice && !muted ? "Voice" : undefined}
+      <DiscoveryCelebration
+        message={celebration?.message ?? ""}
+        emoji={celebration?.emoji}
+        visible={!!celebration}
       />
 
-      <div className="relative mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-b from-muted/30 via-background to-background">
-        {!showTranscript ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-8">
-            <ListeningOrb state={orbState} caption={orbCaption} voiceMode={prefersVoice && !muted} />
-            {displayReply && !voice.listening && (
-              <ChatHeroMessage content={displayReply} streaming={streamingReply !== null} />
-            )}
-            {isThinking && !displayReply && <ChatTypingIndicator />}
-          </div>
-        ) : (
-          <div className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-5">
-            {messages.map((m) => (
-              <ChatMessage
-                key={m.id}
-                role={m.role}
-                content={m.content}
-                userInitial={profile.name || "Y"}
+      <ChatSessionHeader
+        title="Skill Quest"
+        subtitle="20 fun stops · find your superpowers"
+        progress={progressPct}
+        progressLabel={`Quest ${Math.min(progress.answered + (complete ? 0 : 1), DISCOVERY_QUESTION_COUNT)} / ${DISCOVERY_QUESTION_COUNT}`}
+        statusMessage={
+          complete
+            ? "Quest complete! Tap below to reveal your skills."
+            : progress.answered === 0
+              ? "Tap a card to pick your answer — no wrong choices!"
+              : `${progress.activeSkillCount} skills still in the running`
+        }
+        statusTone={complete ? "primary" : "muted"}
+        onEnd={handleEnd}
+      />
+
+      <div className="mt-3 space-y-3">
+        <DiscoveryQuestMap currentStep={progress.answered + 1} complete={complete} />
+        <DiscoverySkillRadar
+          topSkills={progress.topSkills}
+          activeCount={progress.activeSkillCount}
+          answered={progress.answered}
+        />
+      </div>
+
+      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
+        {!complete && question && questionUi && (
+          <section
+            key={questionKey}
+            className="rounded-3xl border-2 border-primary/15 bg-gradient-to-b from-primary/5 via-background to-background p-5 sm:p-6 animate-fade-up"
+          >
+            <DiscoveryMascot mood={mascotMood} message={mascotMessage} />
+
+            <div className="mt-5 rounded-2xl border border-border/60 bg-card/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                {questionUi.emoji} Stop {progress.answered + 1}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">{questionUi.scene}</p>
+              <h2 className="mt-2 font-display text-xl font-bold leading-snug text-balance sm:text-2xl">
+                {questionUi.title}
+              </h2>
+            </div>
+
+            <div className="mt-4">
+              <DiscoveryChoices
+                choices={choices}
+                onSelect={handleSelect}
+                disabled={pending}
+                selectedId={selectedId}
               />
-            ))}
-            {streamingReply !== null && (
-              <ChatMessage role="assistant" content={streamingReply} streaming />
-            )}
-            {isThinking && streamingReply === null && <ChatTypingIndicator />}
-            <div ref={transcriptEndRef} />
-          </div>
+            </div>
+          </section>
         )}
+
+        {complete && (
+          <section className="rounded-3xl border-2 border-success/30 bg-gradient-to-b from-success/10 to-background p-6 text-center animate-discovery-pop">
+            <PartyPopper className="mx-auto size-10 text-success" />
+            <DiscoveryMascot mood="celebrate" message="Woohoo! Quest complete!" />
+            <h2 className="mt-4 font-display text-2xl font-bold">Your top matches</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              These skills rose to the top based on your picks.
+            </p>
+            <ul className="mt-5 flex flex-wrap justify-center gap-2">
+              {progress.topSkills.map((s, i) => (
+                <li
+                  key={s.slug}
+                  className="rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-bold text-primary"
+                >
+                  {["🥇", "🥈", "🥉"][i]} {s.name}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <DiscoveryStickerBook answers={engine.answers} />
       </div>
 
       {error && (
@@ -430,28 +310,15 @@ export function DiscoverySession() {
         </div>
       )}
 
-      <div className="sticky bottom-0 mt-4 space-y-3 bg-background/95 pb-1 pt-2 backdrop-blur-md">
-        <ChatComposer
-          value={textValue}
-          onChange={setTextValue}
-          onSubmit={() => submitUser(textValue)}
-          disabled={isThinking}
-          hint={composerHint}
-          muted={muted}
-          onMuteToggle={handleMuteToggle}
-          showTranscript={showTranscript}
-          onTranscriptToggle={() => setShowTranscript((s) => !s)}
-          listening={voice.listening}
-          thinking={isThinking}
-          speaking={!!isSpeaking}
-          micDisabled={isThinking}
-          onMicToggle={() => void handleMicToggle()}
-        />
-
-        {(readyToConclude || userExchanges >= MIN_EXCHANGES) && (
-          <Button onClick={finish} variant="secondary" className="h-11 w-full rounded-xl" disabled={!canAnalyze}>
-            <Sparkles className="mr-2 size-4" />
-            {canAnalyze ? "See what we discovered" : "Need more detail first"}
+      <div className="sticky bottom-0 mt-4 bg-background/95 pb-1 pt-2 backdrop-blur-md">
+        {complete && (
+          <Button
+            onClick={() => void finish()}
+            size="lg"
+            className="h-12 w-full rounded-2xl text-base font-bold"
+          >
+            <Sparkles className="mr-2 size-5" />
+            Reveal my superpowers!
           </Button>
         )}
       </div>

@@ -102,4 +102,6 @@ export interface SkilzState {
   attempts: ChallengeAttempt[]
   progress: ProgressEvent[]
   discoveryComplete: boolean
+  /** Skills the user rejected — excluded from future merges. */
+  dismissedSkillSlugs: string[]
 }

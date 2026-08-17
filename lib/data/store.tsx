@@ -26,6 +26,7 @@ import type {
   UserSkill,
 } from './types'
 import { EMPTY_PROFILE } from './seed'
+import { mergeSkills } from './merge-skills'
 
 const STORAGE_KEY = 'skilz.state.v1'
 
@@ -37,6 +38,7 @@ const INITIAL_STATE: SkilzState = {
   attempts: [],
   progress: [],
   discoveryComplete: false,
+  dismissedSkillSlugs: [],
 }
 
 function uid(prefix = 'id') {
@@ -54,6 +56,7 @@ interface SkilzContextValue {
   addProgressEvent: (event: Omit<ProgressEvent, 'id' | 'date'>) => void
   // skills
   saveSkills: (skills: UserSkill[]) => void
+  dismissSkill: (slug: string) => void
   strengthenSkill: (slug: string, evidenceText: string) => void
   // plan
   setPlan: (items: PlanItem[]) => void
@@ -130,17 +133,41 @@ export function SkilzProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const saveSkills = useCallback((skills: UserSkill[]) => {
+    setState((s) => {
+      const merged = mergeSkills(s.skills, skills, s.dismissedSkillSlugs)
+      const isFirstDiscovery = s.skills.length === 0
+      return {
+        ...s,
+        skills: merged,
+        discoveryComplete: true,
+        progress: [
+          ...s.progress,
+          {
+            id: uid('pe'),
+            date: Date.now(),
+            title: isFirstDiscovery ? 'Skills discovered' : 'Discovery updated',
+            detail: isFirstDiscovery
+              ? `${merged.length} potential strengths identified from your conversation.`
+              : `${merged.length} skills now tracked with merged evidence.`,
+            type: 'skill',
+          },
+        ],
+      }
+    })
+  }, [])
+
+  const dismissSkill = useCallback((slug: string) => {
     setState((s) => ({
       ...s,
-      skills,
-      discoveryComplete: true,
+      skills: s.skills.filter((sk) => sk.slug !== slug),
+      dismissedSkillSlugs: [...new Set([...s.dismissedSkillSlugs, slug])],
       progress: [
         ...s.progress,
         {
           id: uid('pe'),
           date: Date.now(),
-          title: 'Skills discovered',
-          detail: `${skills.length} potential strengths identified from your conversation.`,
+          title: 'Skill dismissed',
+          detail: 'You marked a hypothesis as not fitting — SKILZ will respect that.',
           type: 'skill',
         },
       ],
@@ -257,6 +284,7 @@ export function SkilzProvider({ children }: { children: ReactNode }) {
       setConversation,
       addProgressEvent,
       saveSkills,
+      dismissSkill,
       strengthenSkill,
       setPlan,
       togglePlanItem,
@@ -271,6 +299,7 @@ export function SkilzProvider({ children }: { children: ReactNode }) {
       setConversation,
       addProgressEvent,
       saveSkills,
+      dismissSkill,
       strengthenSkill,
       setPlan,
       togglePlanItem,
