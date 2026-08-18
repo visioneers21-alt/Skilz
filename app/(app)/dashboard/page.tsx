@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import {
   ArrowRight,
   Compass,
+  MessageCircle,
   Sparkles,
   Trophy,
   Clock,
@@ -14,7 +16,7 @@ import { SkillRow } from '@/components/skilz/skill-card'
 import { JourneyStrip } from '@/components/skilz/journey-strip'
 import { NextStepCard } from '@/components/skilz/next-step-card'
 import { TalentProfileSummary, DiscoveryDimensionsNote } from '@/components/skilz/talent-profile-summary'
-import { DiscoveryAdvicePanel } from '@/components/skilz/discovery-advice-panel'
+import { isSkillsTalkDone } from '@/components/skilz/skill-conversation-session'
 import { RecommendationsPanel } from '@/components/skilz/recommendations-panel'
 import { useSkilz } from '@/lib/data/store'
 import { challengeForSkill, challengeHref } from '@/lib/challenges/catalog'
@@ -54,7 +56,7 @@ export default function DashboardPage() {
         <DiscoveryDimensionsNote />
       </header>
 
-      <DiscoveryAdvicePanel state={state} />
+      <SkillsTalkResumeBanner discoveryComplete={discoveryComplete} skillsCount={skills.length} />
 
       <TalentProfileSummary state={state} />
 
@@ -139,6 +141,12 @@ export default function DashboardPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button asChild variant="outline" size="sm">
+                <Link href="/discover/skills-talk">
+                  <MessageCircle className="size-4" />
+                  Talk about skills
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm">
                 <Link href="/explore">
                   <Compass className="size-4" />
                   Explore
@@ -169,5 +177,41 @@ export default function DashboardPage() {
         <JourneyStrip className="mt-5" state={state} />
       </section>
     </div>
+  )
+}
+
+function SkillsTalkResumeBanner({
+  discoveryComplete,
+  skillsCount,
+}: {
+  discoveryComplete: boolean
+  skillsCount: number
+}) {
+  const [show, setShow] = useState(false)
+
+  useEffect(() => {
+    setShow(discoveryComplete && skillsCount > 0 && !isSkillsTalkDone())
+  }, [discoveryComplete, skillsCount])
+
+  if (!show) return null
+
+  return (
+    <section className="rounded-2xl border border-primary/25 bg-primary/5 p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-display text-base font-bold">Continue your skills conversation</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            SKILZ wants to talk with you about your potential areas — answer a few reflective questions.
+          </p>
+        </div>
+        <Button asChild className="shrink-0">
+          <Link href="/discover/skills-talk">
+            <MessageCircle className="size-4" />
+            Talk with SKILZ
+            <ArrowRight className="size-4" />
+          </Link>
+        </Button>
+      </div>
+    </section>
   )
 }

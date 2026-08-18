@@ -263,6 +263,98 @@ export const ChallengeEvaluationService = {
   },
 }
 
+/** SkillConversationService — post-discovery chat about identified skills. */
+export interface SkillsChatStreamCallbacks {
+  onStart?: () => void
+  onToken: (text: string, fullReply: string) => void
+  onDone: (result: { reply: string; readyToConclude: boolean }) => void
+  onError: (error: Error) => void
+}
+
+export const SkillConversationService = {
+  async streamNext(
+    messages: WireMessage[],
+    skills: {
+      name: string
+      statusLabel: string
+      reasoning?: string
+      developmentAreas?: string[]
+    }[],
+    profile: { name?: string; interests?: string[]; goal?: string } | undefined,
+    callbacks: SkillsChatStreamCallbacks,
+  ): Promise<void> {
+    const res = await fetch('/api/skills-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ messages, skills, profile }),
+    })
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      if (res.status === 403 && data.code === AUTH_REQUIRED_CODE) {
+        callbacks.onError(new AuthRequiredError(data.triesRemaining ?? 0))
+        return
+      }
+      callbacks.onError(new Error(data.error || 'Request failed'))
+      return
+    }
+
+    if (!res.body) {
+      callbacks.onError(new Error('No response stream'))
+      return
+    }
+
+    callbacks.onStart?.()
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let fullReply = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+          const event = JSON.parse(line) as
+            | { type: 'token'; text: string }
+            | { type: 'error'; error: string }
+            | { type: 'done'; reply: string; readyToConclude: boolean }
+
+          if (event.type === 'token') {
+            fullReply += event.text
+            callbacks.onToken(event.text, fullReply)
+          } else if (event.type === 'error') {
+            callbacks.onError(new Error(event.error))
+            return
+          } else if (event.type === 'done') {
+            callbacks.onDone({
+              reply: event.reply || fullReply.trim(),
+              readyToConclude: event.readyToConclude,
+            })
+            return
+          }
+        }
+      }
+
+      if (fullReply.trim()) {
+        callbacks.onDone({ reply: fullReply.trim(), readyToConclude: false })
+      } else {
+        callbacks.onError(new Error('Empty response'))
+      }
+    } catch (err) {
+      callbacks.onError(err instanceof Error ? err : new Error('Stream failed'))
+    }
+  },
+}
+
 /** SkillAdviceService — personalized guidance after discovery. */
 export const SkillAdviceService = {
   async get(input: {

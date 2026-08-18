@@ -33,7 +33,7 @@ import {
   loadPendingDiscovery,
   savePendingDiscovery,
 } from "@/lib/discovery/pending"
-import { markDiscoveryAdvicePending } from "@/components/skilz/discovery-advice-panel"
+import { markSkillsTalkPending } from "@/components/skilz/skill-conversation-session"
 import {
   getIntroLines,
   getMilestoneMessage,
@@ -117,9 +117,9 @@ export function DiscoverySession() {
         })
         saveSkills(skills)
         clearPendingDiscovery()
-        markDiscoveryAdvicePending()
+        markSkillsTalkPending()
         void refreshSession()
-        router.push("/dashboard")
+        router.push("/discover/skills-talk")
       } catch (err) {
         setAnalyzing(false)
         analyzeStarted.current = false
@@ -276,9 +276,9 @@ export function DiscoverySession() {
           </div>
         </div>
         <div className="space-y-2">
-          <h2 className="font-display text-xl font-bold">Preparing your personalized advice</h2>
+          <h2 className="font-display text-xl font-bold">Understanding your potential areas</h2>
           <p className="max-w-xs text-pretty text-sm text-muted-foreground">
-            SKILZ is analyzing your full discovery journey — then you&apos;ll land on your home page with guidance for your top potential areas.
+            SKILZ is analyzing your discovery journey — then you&apos;ll talk with SKILZ about your top skills.
           </p>
         </div>
       </div>
@@ -287,14 +287,27 @@ export function DiscoverySession() {
 
   if (showCompletion && complete && !awaitingSignup) {
     return (
-      <div className="mx-auto flex min-h-[70vh] max-w-md flex-col items-center justify-center gap-6 px-4 text-center animate-fade-up">
+      <div className="mx-auto flex min-h-[70vh] max-w-lg flex-col items-center justify-center gap-6 px-4 text-center animate-fade-up">
         <DiscoveryMascot mood="celebrate" size="lg" message="You finished the whole journey!" />
-        <div className="space-y-2">
+        <div className="space-y-3">
           <h2 className="font-display text-2xl font-bold">Discovery complete</h2>
           <p className="text-sm leading-relaxed text-muted-foreground">
+            You explored all 4 chapters — school life, working with others, what drives you, and your path forward.
+          </p>
+          <ul className="mx-auto max-w-xs space-y-2 text-left text-sm">
+            {['School & everyday life', 'How you work with others', 'What drives you', 'Your path forward'].map(
+              (chapter) => (
+                <li key={chapter} className="flex items-center gap-2 rounded-xl border border-border/60 bg-card/60 px-3 py-2">
+                  <span className="text-primary" aria-hidden>✓</span>
+                  {chapter}
+                </li>
+              ),
+            )}
+          </ul>
+          <p className="text-sm leading-relaxed text-muted-foreground">
             {authenticated
-              ? 'Taking you home with AI guidance for your potential areas…'
-              : 'Create a free account next — then we\'ll take you home with personalized advice.'}
+              ? 'Next: SKILZ will analyze your answers, then chat with you about your potential areas.'
+              : 'Create a free account — then SKILZ will analyze your answers and talk through your potential areas with you.'}
           </p>
         </div>
       </div>
@@ -306,9 +319,9 @@ export function DiscoverySession() {
       <div className="mx-auto max-w-md space-y-6 px-1">
         <div className="rounded-3xl border border-primary/20 bg-gradient-to-b from-primary/10 via-background to-background p-6 text-center sm:p-8">
           <DiscoveryMascot mood="celebrate" message="Journey complete!" />
-          <h2 className="mt-4 font-display text-2xl font-bold">One step left — then home with your advice</h2>
+          <h2 className="mt-4 font-display text-2xl font-bold">One step left — then talk about your skills</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Your discovery answers are saved. Sign up free and SKILZ will analyze your journey, then guide you on your home page with advice for your top potential areas.
+            Your discovery answers are saved. Sign up free and SKILZ will analyze your journey, then have a conversation with you about your top potential areas.
           </p>
         </div>
         <div className="rounded-2xl border border-border bg-card p-6">
@@ -364,6 +377,10 @@ export function DiscoverySession() {
     )
   }
 
+  if (complete) {
+    return null
+  }
+
   return (
     <div className="mx-auto flex min-h-[calc(100vh-9rem)] max-w-2xl flex-col">
       <DiscoveryCelebration
@@ -376,19 +393,13 @@ export function DiscoverySession() {
         title="Discovery journey"
         subtitle={chapterProgress.chapter.title}
         progress={progressPct}
-        progressLabel={
-          complete
-            ? "Complete"
-            : `${chapterProgress.chapter.title} · ${chapterProgress.momentInChapter} of ${chapterProgress.chapterSize}`
-        }
+        progressLabel={`${chapterProgress.chapter.title} · ${chapterProgress.momentInChapter} of ${chapterProgress.chapterSize}`}
         statusMessage={
-          complete
-            ? "Almost there — create an account to see your results."
-            : progress.answered === 0
-              ? "Read the moment, then tap what feels most like you."
-              : `${progress.activeSkillCount} areas still in the running`
+          progress.answered === 0
+            ? "Read the moment, then tap what feels most like you."
+            : `${progress.activeSkillCount} areas still in the running`
         }
-        statusTone={complete ? "primary" : "muted"}
+        statusTone="muted"
         onEnd={handleEnd}
       />
 
@@ -397,7 +408,7 @@ export function DiscoverySession() {
           chapterIndex={chapterProgress.chapterIndex}
           momentInChapter={chapterProgress.momentInChapter}
           chapterSize={chapterProgress.chapterSize}
-          complete={complete}
+          complete={false}
         />
       </div>
 
