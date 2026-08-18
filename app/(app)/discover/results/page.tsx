@@ -90,16 +90,18 @@ export default function DiscoveryResultsPage() {
       <header className="text-center">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground">
           <Sparkles className="size-3.5" />
-          Discovery complete
+          Your potential profile
         </span>
         <h1 className="mt-4 text-balance text-2xl font-bold md:text-3xl">
-          Your potential profile
+          Discovery results
         </h1>
         <p className="mx-auto mt-3 max-w-lg text-pretty text-sm leading-relaxed text-muted-foreground md:text-base">
-          These are areas of <strong className="font-medium text-foreground">potential</strong> from your discovery answers — not fixed labels.
-          Try mini-challenges to test what fits. Mark anything that isn&apos;t for you.
+          Full breakdown of your areas of potential. Your home page has AI guidance and next steps.
         </p>
-        <div className="mt-4 flex justify-center">
+        <div className="mt-4 flex flex-wrap justify-center gap-3">
+          <Button asChild>
+            <Link href="/dashboard">Go to home</Link>
+          </Button>
           <SkillsSnapshotButton profile={profile} skills={skills} />
         </div>
       </header>

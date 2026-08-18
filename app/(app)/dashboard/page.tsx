@@ -14,6 +14,7 @@ import { SkillRow } from '@/components/skilz/skill-card'
 import { JourneyStrip } from '@/components/skilz/journey-strip'
 import { NextStepCard } from '@/components/skilz/next-step-card'
 import { TalentProfileSummary, DiscoveryDimensionsNote } from '@/components/skilz/talent-profile-summary'
+import { DiscoveryAdvicePanel } from '@/components/skilz/discovery-advice-panel'
 import { RecommendationsPanel } from '@/components/skilz/recommendations-panel'
 import { useSkilz } from '@/lib/data/store'
 import { challengeForSkill, challengeHref } from '@/lib/challenges/catalog'
@@ -52,6 +53,8 @@ export default function DashboardPage() {
         </p>
         <DiscoveryDimensionsNote />
       </header>
+
+      <DiscoveryAdvicePanel state={state} />
 
       <TalentProfileSummary state={state} />
 

@@ -263,6 +263,24 @@ export const ChallengeEvaluationService = {
   },
 }
 
+/** SkillAdviceService — personalized guidance after discovery. */
+export const SkillAdviceService = {
+  async get(input: {
+    skills: {
+      name: string
+      statusLabel: string
+      reasoning?: string
+      developmentAreas?: string[]
+    }[]
+    profile?: { name?: string; interests?: string[]; goal?: string }
+  }): Promise<{
+    summary: string
+    highlights: { skillName: string; advice: string; nextStep: string }[]
+  }> {
+    return postJson('/api/advice', input)
+  },
+}
+
 /** DevelopmentPlanService — assembles a personalized plan. */
 export const DevelopmentPlanService = {
   async build(input: {

@@ -33,6 +33,7 @@ import {
   loadPendingDiscovery,
   savePendingDiscovery,
 } from "@/lib/discovery/pending"
+import { markDiscoveryAdvicePending } from "@/components/skilz/discovery-advice-panel"
 import {
   getIntroLines,
   getMilestoneMessage,
@@ -84,6 +85,7 @@ export function DiscoverySession() {
   const [pending, setPending] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [celebration, setCelebration] = useState<{ message: string; emoji: string } | null>(null)
+  const [showCompletion, setShowCompletion] = useState(false)
   const [mascotMood, setMascotMood] = useState<"idle" | "excited" | "thinking" | "celebrate">("idle")
   const [questionKey, setQuestionKey] = useState(0)
   const [chapterIntroAt, setChapterIntroAt] = useState<number | null>(null)
@@ -115,8 +117,9 @@ export function DiscoverySession() {
         })
         saveSkills(skills)
         clearPendingDiscovery()
+        markDiscoveryAdvicePending()
         void refreshSession()
-        router.push("/discover/results")
+        router.push("/dashboard")
       } catch (err) {
         setAnalyzing(false)
         analyzeStarted.current = false
@@ -215,14 +218,16 @@ export function DiscoverySession() {
         if (nextIndex < DISCOVERY_QUESTION_COUNT && shouldShowChapterIntro(nextIndex)) {
           setChapterIntroAt(nextIndex)
         } else if (nextIndex >= DISCOVERY_QUESTION_COUNT) {
+          setShowCompletion(true)
+          setMascotMood("celebrate")
+          savePendingDiscovery(nextEngine)
           window.setTimeout(() => {
-            savePendingDiscovery(nextEngine)
             if (authenticated) {
               void runAnalysis(nextEngine)
             } else {
               setAwaitingSignup(true)
             }
-          }, 400)
+          }, 1400)
         }
 
         window.setTimeout(() => setMascotMood("idle"), 600)
@@ -271,9 +276,25 @@ export function DiscoverySession() {
           </div>
         </div>
         <div className="space-y-2">
-          <h2 className="font-display text-xl font-bold">Finding your top potential areas</h2>
+          <h2 className="font-display text-xl font-bold">Preparing your personalized advice</h2>
           <p className="max-w-xs text-pretty text-sm text-muted-foreground">
-            SKILZ is analyzing your full discovery journey — looking for patterns across all your choices.
+            SKILZ is analyzing your full discovery journey — then you&apos;ll land on your home page with guidance for your top potential areas.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (showCompletion && complete && !awaitingSignup) {
+    return (
+      <div className="mx-auto flex min-h-[70vh] max-w-md flex-col items-center justify-center gap-6 px-4 text-center animate-fade-up">
+        <DiscoveryMascot mood="celebrate" size="lg" message="You finished the whole journey!" />
+        <div className="space-y-2">
+          <h2 className="font-display text-2xl font-bold">Discovery complete</h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {authenticated
+              ? 'Taking you home with AI guidance for your potential areas…'
+              : 'Create a free account next — then we\'ll take you home with personalized advice.'}
           </p>
         </div>
       </div>
@@ -285,10 +306,9 @@ export function DiscoverySession() {
       <div className="mx-auto max-w-md space-y-6 px-1">
         <div className="rounded-3xl border border-primary/20 bg-gradient-to-b from-primary/10 via-background to-background p-6 text-center sm:p-8">
           <DiscoveryMascot mood="celebrate" message="Journey complete!" />
-          <h2 className="mt-4 font-display text-2xl font-bold">Create an account to see your results</h2>
+          <h2 className="mt-4 font-display text-2xl font-bold">One step left — then home with your advice</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Your discovery answers are saved. Sign up free to unlock your potential profile — areas worth
-            exploring based on what you chose.
+            Your discovery answers are saved. Sign up free and SKILZ will analyze your journey, then guide you on your home page with advice for your top potential areas.
           </p>
         </div>
         <div className="rounded-2xl border border-border bg-card p-6">
