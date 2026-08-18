@@ -2,6 +2,7 @@ import { generateText, Output } from 'ai'
 import { z } from 'zod'
 import { ANALYSIS_MODEL, SKILZ_PERSONA } from '@/lib/ai/models'
 import { requireAiAccess } from '@/lib/auth/guard'
+import { aiErrorMessage, withAiRetry } from '@/lib/ai/with-ai-retry'
 
 export const maxDuration = 30
 
@@ -37,15 +38,27 @@ export async function POST(req: Request) {
 
   const instructions = `${SKILZ_PERSONA}
 
-Build a short, motivating personal development plan. The current focus is "${focus}".
+Build a short, motivating personal development plan for a secondary-school student in Sierra Leone.
+The current focus is "${focus}".
 Return 4 to 6 plan items across these buckets, in order:
-- "this-week": 1 concrete, doable task (ideally a practical challenge).
+- "this-week": 1 concrete, doable task (ideally a SKILZ mini-challenge or small project).
 - "next": 1-2 tasks that build directly on it.
 - "then": 1 slightly more ambitious task.
 - "later": 1 stretch goal tied to another identified skill.
 
 Each item: a short "title", a one-sentence "detail", a realistic "estimatedTime" (e.g. "15 min", "This week"), the "skillName" it grows, and the "bucket".
-Keep it practical and encouraging — small steps that build momentum.`
+
+IMPORTANT — recommend actions a student can realistically take WITHOUT paid courses or invented URLs:
+- Try another SKILZ challenge
+- Join a school club (STEM, debate, entrepreneurship, media)
+- Build a small project (poster, app idea, community solution)
+- Practice a skill with a friend or classmate
+- Research a career path (library, teacher, online when available)
+- Talk to a mentor, teacher, or senior student
+- Enter a school competition or science fair
+- Explore WAEC subject choices related to their interest
+- Volunteer in the community
+Do NOT invent external website links or fake programs. Keep steps small and encouraging.`
 
   const skillList = skills
     .map(
@@ -59,31 +72,33 @@ Keep it practical and encouraging — small steps that build momentum.`
     .join('\n')
 
   try {
-    const { output } = await generateText({
-      model: ANALYSIS_MODEL,
-      instructions,
-      prompt: `Identified skills:\n${skillList}\n\nBuild the development plan.`,
-      output: Output.object({
-        schema: z.object({
-          items: z
-            .array(
-              z.object({
-                title: z.string(),
-                detail: z.string(),
-                estimatedTime: z.string(),
-                skillName: z.string(),
-                bucket: z.enum(['this-week', 'next', 'then', 'later']),
-              }),
-            )
-            .min(4)
-            .max(6),
+    const { output } = await withAiRetry(() =>
+      generateText({
+        model: ANALYSIS_MODEL,
+        instructions,
+        prompt: `Identified areas of potential:\n${skillList}\n\nBuild a practical development plan.`,
+        output: Output.object({
+          schema: z.object({
+            items: z
+              .array(
+                z.object({
+                  title: z.string(),
+                  detail: z.string(),
+                  estimatedTime: z.string(),
+                  skillName: z.string(),
+                  bucket: z.enum(['this-week', 'next', 'then', 'later']),
+                }),
+              )
+              .min(4)
+              .max(6),
+          }),
         }),
       }),
-    })
+    )
 
     return Response.json({ items: output.items })
   } catch (err) {
     console.error('[skilz] plan route error:', err)
-    return Response.json({ error: 'Could not build a plan.' }, { status: 502 })
+    return Response.json({ error: aiErrorMessage(err) }, { status: 502 })
   }
 }

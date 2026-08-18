@@ -64,6 +64,15 @@ export interface PlanItem {
   status: 'todo' | 'in-progress' | 'done'
 }
 
+export interface ChallengeReflection {
+  enjoyed: boolean | null
+  difficulty: 'easy' | 'medium' | 'hard' | null
+  wantSimilar: boolean | null
+  learned: string
+}
+
+export type SkillInterestFeedback = 'enjoyed' | 'learn-more' | 'not-for-me'
+
 export interface ChallengeAttempt {
   id: string
   challengeSlug: string
@@ -73,6 +82,7 @@ export interface ChallengeAttempt {
   strengths: string[]
   improvements: string[]
   summary: string
+  reflection?: ChallengeReflection
   createdAt: number
 }
 
@@ -102,6 +112,7 @@ export interface SkilzState {
   attempts: ChallengeAttempt[]
   progress: ProgressEvent[]
   discoveryComplete: boolean
-  /** Skills the user rejected — excluded from future merges. */
   dismissedSkillSlugs: string[]
+  /** Student feedback on skills — improves future recommendations. */
+  skillFeedback: Record<string, SkillInterestFeedback>
 }

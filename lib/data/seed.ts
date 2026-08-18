@@ -1,4 +1,5 @@
 import type { Profile, SkillStage, SkillStatusLabel } from './types'
+import { challengeForSkill as resolveChallengeForSkill } from '@/lib/challenges/catalog'
 
 export interface ChallengeDef {
   slug: string
@@ -63,10 +64,8 @@ export const CHALLENGES: ChallengeDef[] = [
   },
 ]
 
-export function challengeForSkill(skillSlug: string): ChallengeDef {
-  return (
-    CHALLENGES.find((c) => c.skillSlug === skillSlug) ?? CHALLENGES[0]
-  )
+export function challengeForSkill(skillSlug: string, skillName?: string): ChallengeDef {
+  return resolveChallengeForSkill(skillSlug, skillName)
 }
 
 export const STAGE_ORDER: SkillStage[] = [
@@ -121,6 +120,7 @@ export const EMPTY_PROFILE: Profile = {
 
 export const INTEREST_OPTIONS = [
   'Technology',
+  'Engineering',
   'Design',
   'Writing',
   'Business',
@@ -129,6 +129,7 @@ export const INTEREST_OPTIONS = [
   'Art & Music',
   'Sports',
   'Health',
+  'Agriculture',
   'Gaming',
   'Community',
   'Travel',
@@ -138,19 +139,19 @@ export const GOAL_OPTIONS = [
   { value: 'unknown', label: "I don't know what I'm good at." },
   {
     value: 'develop',
-    label: "I know my strengths but don't know how to develop them.",
+    label: "I know some strengths but don't know how to develop them.",
   },
-  { value: 'career', label: "I'm exploring career options." },
+  { value: 'career', label: "I'm exploring career options (WAEC, university, work)." },
   { value: 'improve', label: 'I want to improve specific skills.' },
 ]
 
 export const AGE_RANGES = ['Under 16', '16–20', '21–25', '26–34', '35+']
 
 export const EDUCATION_LEVELS = [
-  'In school',
-  'High school',
-  'Undergraduate',
-  'Graduate',
+  'Junior secondary (JSS)',
+  'Senior secondary (SSS / Form 1–6)',
+  'WAEC candidate',
+  'University / college',
   'Self-taught',
   'Working professional',
 ]

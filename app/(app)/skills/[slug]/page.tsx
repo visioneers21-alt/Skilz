@@ -9,12 +9,10 @@ import {
   ConfidenceLabel,
   StatusBadge,
 } from '@/components/skilz/status-badge'
+import { EvidenceLoopSummary } from '@/components/skilz/evidence-loop-summary'
 import { useSkilz } from '@/lib/data/store'
-import {
-  STAGE_LABELS,
-  STAGE_ORDER,
-  challengeForSkill,
-} from '@/lib/data/seed'
+import { STAGE_LABELS, STAGE_ORDER } from '@/lib/data/seed'
+import { challengeForSkill, challengeHref } from '@/lib/challenges/catalog'
 import { findEvidenceSource } from '@/lib/data/evidence-source'
 
 export default function SkillDetailPage() {
@@ -34,12 +32,12 @@ export default function SkillDetailPage() {
     )
   }
 
-  const challenge = challengeForSkill(skill.slug)
+  const challenge = challengeForSkill(skill.slug, skill.name)
   const stageIndex = STAGE_ORDER.indexOf(skill.stage)
   const stageProgress = ((stageIndex + 1) / STAGE_ORDER.length) * 100
 
   function handleDismiss() {
-    dismissSkill(skill.slug)
+    dismissSkill(params.slug)
     router.push('/skills')
   }
 
@@ -80,9 +78,11 @@ export default function SkillDetailPage() {
           {skill.reasoning}
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
-          SKILZ suggests this based on your stories — you know yourself best. Remove it if it doesn&apos;t fit.
+          This is an area of potential from your discovery — not a final career label. Remove it if it doesn&apos;t fit.
         </p>
       </header>
+
+      <EvidenceLoopSummary skill={skill} state={state} />
 
       <section className="rounded-2xl border border-border bg-card p-5">
         <div className="flex items-center justify-between text-sm">
@@ -170,7 +170,7 @@ export default function SkillDetailPage() {
           {challenge.estimatedTime}
         </div>
         <Button asChild size="lg" className="mt-4 w-full sm:w-auto">
-          <Link href={`/challenge/${challenge.slug}`}>
+          <Link href={challengeHref(challenge.slug, skill.slug)}>
             Start challenge
             <ArrowRight className="size-4" />
           </Link>

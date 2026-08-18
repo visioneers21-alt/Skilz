@@ -9,6 +9,7 @@ import {
   refineSkillHypotheses,
 } from '@/lib/ai/eligibility'
 import { requireAiAccess } from '@/lib/auth/guard'
+import { aiErrorMessage, withAiRetry } from '@/lib/ai/with-ai-retry'
 
 export const maxDuration = 30
 
@@ -109,7 +110,8 @@ export async function POST(req: Request) {
 
   const instructions = `${SKILZ_PERSONA}
 
-Analyze the discovery Q&A transcript and identify 3 to 5 POTENTIAL skills the person shows signs of. These are hypotheses to be tested, not verdicts.
+Analyze the discovery Q&A transcript and identify 3 to 5 areas of POTENTIAL the person shows signs of. These are hypotheses to be tested, not diagnoses.
+The student may be a secondary-school learner in Sierra Leone exploring subjects, WAEC paths, clubs, and career directions.
 ${candidateBlock}
 Rules:
 - Prefer skill names from this vocabulary when they fit: ${vocabulary.slice(0, 40).join(', ')}${vocabulary.length > 40 ? `, and ${vocabulary.length - 40} more related skills` : ''}.
@@ -122,17 +124,21 @@ Rules:
   * 0.35–0.49 = thin signal — use "Worth exploring" only
 - Order from strongest to weakest signal.
 - Only mark "Strong potential" when there are 2+ distinct concrete signals AND confidence >= 0.65.
-- Keep evidence items short (a few words each) and phrased as observations.`
+- Keep evidence items short (a few words each) and phrased as observations.
+- In reasoning, NEVER say "You are a [job title]". ALWAYS say "You show potential in…" or "Your responses suggest…".
+- Frame skills as areas to explore (e.g. "Engineering & Technology"), not fixed identities.`
 
   try {
-    const { output } = await generateText({
-      model: ANALYSIS_MODEL,
-      instructions,
-      prompt: `Conversation transcript:\n\n${transcript}\n\nIdentify the potential skills.`,
-      output: Output.object({
-        schema: z.object({ skills: z.array(SkillSchema).min(3).max(5) }),
+    const { output } = await withAiRetry(() =>
+      generateText({
+        model: ANALYSIS_MODEL,
+        instructions,
+        prompt: `Conversation transcript:\n\n${transcript}\n\nIdentify areas of potential (not final career labels).`,
+        output: Output.object({
+          schema: z.object({ skills: z.array(SkillSchema).min(3).max(5) }),
+        }),
       }),
-    })
+    )
 
     const refined = refineSkillHypotheses(output.skills)
     if (refined.length === 0) {
@@ -150,7 +156,7 @@ Rules:
   } catch (err) {
     console.error('[skilz] analyze route error:', err)
     return Response.json(
-      { error: 'Could not analyze the conversation.' },
+      { error: aiErrorMessage(err) },
       { status: 502 },
     )
   }

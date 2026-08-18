@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Compass, Layers, Map, User, Mic, LogIn, LogOut } from 'lucide-react'
+import { Home, Compass, Layers, Map, User, LogIn, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SkilzLogo } from '@/components/skilz/logo'
 import { ThemeToggle } from '@/components/skilz/theme-toggle'
@@ -73,8 +73,8 @@ export function DesktopNav() {
           )}
           <Button asChild size="sm">
             <Link href="/discover">
-              <Mic className="size-4" />
-              Talk to SKILZ
+              <Compass className="size-4" />
+              Start discovery
             </Link>
           </Button>
         </div>

@@ -6,11 +6,11 @@ export function CareerPathsSection({ paths }: { paths: CareerPath[] }) {
   return (
     <section id="career-paths" className="scroll-mt-8">
       <h2 className="font-display text-sm font-bold uppercase tracking-wide text-muted-foreground">
-        Paths worth exploring
+        Possible areas to explore
       </h2>
       <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-        Based on your skills and stories — not a personality type. Use these as
-        starting points for research, conversations, and experiments.
+        Based on your potential profile — starting points for research, WAEC subject choices, and
+        conversations with teachers or mentors. Not guaranteed career outcomes.
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {paths.map((path) => (

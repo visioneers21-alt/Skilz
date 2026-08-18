@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { isDatabaseConnected } from '@/lib/db'
 import { verifyOtp } from '@/lib/auth/otp'
 import { createSession, findOrCreateUser, getSessionUser } from '@/lib/auth/session'
+import { friendlyDbError } from '@/lib/db/retry'
 
 const RequestSchema = z.object({
   email: z.string().email(),
@@ -45,6 +46,8 @@ export async function POST(req: Request) {
     return Response.json({ ok: true, email })
   } catch (err) {
     console.error('[skilz] verify-otp error:', err)
-    return Response.json({ error: 'Could not sign in' }, { status: 502 })
+    const message = friendlyDbError(err)
+    const status = message.includes('temporarily unavailable') ? 503 : 502
+    return Response.json({ error: message }, { status })
   }
 }

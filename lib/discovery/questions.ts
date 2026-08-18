@@ -20,8 +20,8 @@ export interface DiscoveryQuestion {
 export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
   {
     id: 'q1-natural',
-    prompt: 'Which kind of activity feels most natural to you?',
-    hint: 'Think about what you do without being asked.',
+    prompt: 'Which kind of activity feels most natural to you at school or in your community?',
+    hint: 'Think about what you do without being asked — clubs, subjects, or helping others.',
     options: [
       { id: 'a', label: 'Explaining or presenting ideas to others', domainBoosts: { communication: 3, teaching: 2 } },
       { id: 'b', label: 'Building, fixing, or making things with my hands', domainBoosts: { 'hands-on': 3, technical: 1 } },
@@ -52,6 +52,7 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
   {
     id: 'q4-environment',
     prompt: 'Where do you do your best work?',
+    hint: 'School lab, debate stage, quiet study, or out in the community.',
     options: [
       { id: 'a', label: 'Collaborating face-to-face with a group', domainBoosts: { social: 2, leadership: 1 }, skillBoosts: { collaboration: 2, teamwork: 2 } },
       { id: 'b', label: 'Quiet solo time with minimal interruptions', domainBoosts: { analytical: 2, creative: 2 } },

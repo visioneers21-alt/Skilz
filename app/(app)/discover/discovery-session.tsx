@@ -191,7 +191,7 @@ export function DiscoverySession() {
     return (
       <div className="mx-auto flex min-h-[calc(100vh-9rem)] max-w-2xl flex-col justify-center gap-6 px-1">
         <div className="rounded-3xl border border-primary/20 bg-gradient-to-b from-primary/10 via-background to-background p-6 sm:p-8 text-center animate-fade-up">
-          <DiscoveryMascot mood="excited" size="lg" message="Hi! I'm your SKILZ guide. Let's play a quick quest!" />
+          {/* <DiscoveryMascot mood="excited" size="lg" message="Hi! I'm your SKILZ guide. Let's play a quick quest!" /> */}
           <h1 className="mt-6 font-display text-2xl font-bold capitalize sm:text-3xl">{intro.headline}</h1>
           <p className="mt-2 text-muted-foreground">{intro.subline}</p>
           <ul className="mt-6 space-y-3 text-left">

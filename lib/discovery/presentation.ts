@@ -36,8 +36,8 @@ export const QUESTION_UI: Record<string, QuestionUi> = {
   'q1-natural': {
     emoji: '🌟',
     title: 'What feels most like YOU?',
-    scene: 'Imagine a free afternoon with zero homework.',
-    mascotLine: "Pick the one that makes you go \"yes, that's me!\"",
+    scene: 'Think about after school — clubs, homework, helping at home, or free time.',
+    mascotLine: 'Pick the one that makes you go "yes, that\'s me!"',
     options: {
       a: { emoji: '🗣️', title: 'Talking & sharing ideas', detail: 'Shows, explains, presents' },
       b: { emoji: '🔧', title: 'Building & fixing stuff', detail: 'Hands-on maker energy' },
@@ -72,8 +72,8 @@ export const QUESTION_UI: Record<string, QuestionUi> = {
   'q4-environment': {
     emoji: '🏠',
     title: 'Where do you shine brightest?',
-    scene: 'Your perfect workspace looks like…',
-    mascotLine: 'Tap the place where you do your best thinking!',
+    scene: 'At school, at home, or in your community — where do you do your best?',
+    mascotLine: 'Tap the place where you feel most confident!',
     options: {
       a: { emoji: '👥', title: 'With a group, chatting & teaming up', detail: 'Team player' },
       b: { emoji: '🤫', title: 'Quiet corner, just me', detail: 'Solo zone' },
@@ -329,12 +329,12 @@ export function getIntroLines(name?: string): {
 } {
   const who = name ? `${name}, ` : ''
   return {
-    headline: `${who}ready for a skill quest?`,
-    subline: 'Answer 20 fun questions. Watch your superpowers appear!',
+    headline: `${who}ready for your discovery quest?`,
+    subline: '20 quick questions about school life, interests, and how you solve problems.',
     steps: [
-      { emoji: '🗺️', text: '20 quick stops on the quest map' },
-      { emoji: '🔮', text: '150 skills shrink as you choose' },
-      { emoji: '🏅', text: 'Discover strengths you can grow' },
+      { emoji: '🗺️', text: '20 stops — works even with limited internet' },
+      { emoji: '🔮', text: '150 areas narrow as you choose' },
+      { emoji: '🏅', text: 'See potential to explore — not a final label' },
     ],
   }
 }

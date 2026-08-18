@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import { isDatabaseConnected } from '@/lib/db'
 import { createAndSendOtp, isValidEmail, OtpResendCooldownError } from '@/lib/auth/otp'
+import { friendlyDbError } from '@/lib/db/retry'
 import { getSessionUser } from '@/lib/auth/session'
+import { userExists } from '@/lib/auth/users'
 import { isBrevoConfigured } from '@/lib/email/brevo'
 
 const RequestSchema = z.object({
@@ -39,6 +41,16 @@ export async function POST(req: Request) {
     })
   }
 
+  if (await userExists(email)) {
+    return Response.json(
+      {
+        error: 'This email already has an account. Log in instead — no code needed.',
+        code: 'USER_EXISTS',
+      },
+      { status: 409 },
+    )
+  }
+
   try {
     await createAndSendOtp(email)
     return Response.json({ ok: true })
@@ -53,8 +65,8 @@ export async function POST(req: Request) {
       )
     }
     console.error('[skilz] send-otp error:', err)
-    const message =
-      err instanceof Error ? err.message : 'Could not send sign-in code'
-    return Response.json({ error: message }, { status: 502 })
+    const message = friendlyDbError(err)
+    const status = message.includes('temporarily unavailable') ? 503 : 502
+    return Response.json({ error: message }, { status })
   }
 }

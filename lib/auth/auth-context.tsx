@@ -35,6 +35,7 @@ interface AuthContextValue extends AuthStatus {
   closeAuthModal: () => void
   refreshSession: () => Promise<void>
   sendOtp: (email: string) => Promise<boolean>
+  loginWithEmail: (email: string) => Promise<void>
   verifyOtp: (email: string, code: string) => Promise<void>
   logout: () => Promise<void>
 }
@@ -98,6 +99,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false
   }, [refreshSession])
 
+  const loginWithEmail = useCallback(
+    async (email: string) => {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email }),
+      })
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        code?: string
+      }
+      if (!res.ok) {
+        throw new Error(data.error || 'Could not log in')
+      }
+      await refreshSession()
+      setAuthModalOpen(false)
+    },
+    [refreshSession],
+  )
+
   const verifyOtp = useCallback(
     async (email: string, code: string) => {
       const res = await fetch('/api/auth/verify-otp', {
@@ -133,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       closeAuthModal,
       refreshSession,
       sendOtp,
+      loginWithEmail,
       verifyOtp,
       logout,
     }),
@@ -144,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       closeAuthModal,
       refreshSession,
       sendOtp,
+      loginWithEmail,
       verifyOtp,
       logout,
     ],

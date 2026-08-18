@@ -15,6 +15,6 @@ export default defineConfig({
   out: './lib/db/migrations',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    url: process.env.DATABASE_URL.replace(/([?&])channel_binding=[^&]*&?/g, '$1').replace(/[?&]$/, ''),
   },
 })

@@ -1,5 +1,6 @@
 import type { SkilzState } from '@/lib/data/types'
 import { challengeForSkill } from '@/lib/data/seed'
+import { challengeHref } from '@/lib/challenges/catalog'
 
 export interface NextStep {
   id: string
@@ -18,11 +19,11 @@ export function getPrimaryNextStep(state: SkilzState): NextStep {
   if (!discoveryComplete || skills.length === 0) {
     return {
       id: 'discover',
-      title: 'Start with a real conversation',
+      title: 'Start your discovery quest',
       description:
-        'Most people guess at their strengths. SKILZ pulls stories from your life — what you enjoy, how you help others, what energizes you.',
+        'Answer 20 fun questions across interests, problem-solving, creativity, and more — SKILZ narrows 150+ areas to your best potential matches.',
       href: '/discover',
-      cta: 'Talk to SKILZ',
+      cta: 'Start discovery',
       kind: 'discover',
     }
   }
@@ -30,13 +31,13 @@ export function getPrimaryNextStep(state: SkilzState): NextStep {
   const unvalidated = skills.filter((s) => !attemptedSlugs.has(s.slug))
   if (unvalidated.length > 0) {
     const focus = unvalidated.find((s) => s.category === 'strong') ?? unvalidated[0]!
-    const challenge = challengeForSkill(focus.slug)
+    const challenge = challengeForSkill(focus.slug, focus.name)
     return {
       id: 'validate',
-      title: `Prove "${focus.name}" with a quick challenge`,
-      description: `${challenge.prompt} Real evidence beats self-assessment — this takes about ${challenge.estimatedTime}.`,
-      href: `/challenge/${challenge.slug}`,
-      cta: 'Start challenge',
+      title: `Try it: test "${focus.name}"`,
+      description: `${challenge.prompt.slice(0, 120)}… Mini-challenges help you explore whether an area fits — not prove you're already an expert.`,
+      href: challengeHref(challenge.slug, focus.slug),
+      cta: 'Start mini-challenge',
       kind: 'validate',
     }
   }
@@ -56,9 +57,9 @@ export function getPrimaryNextStep(state: SkilzState): NextStep {
   if (plan.length === 0) {
     return {
       id: 'build-plan',
-      title: 'Turn insights into a weekly plan',
+      title: 'Turn potential into a plan',
       description:
-        'SKILZ builds small, doable steps from your top skills — not a generic career checklist.',
+        'SKILZ builds small weekly steps from your top areas — then explore fields and try mini-challenges along the way.',
       href: '/discover/results',
       cta: 'Build my plan',
       kind: 'plan',

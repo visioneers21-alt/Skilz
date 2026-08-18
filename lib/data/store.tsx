@@ -18,10 +18,12 @@ import {
 } from 'react'
 import type {
   ChallengeAttempt,
+  ChallengeReflection,
   Message,
   PlanItem,
   Profile,
   ProgressEvent,
+  SkillInterestFeedback,
   SkilzState,
   UserSkill,
 } from './types'
@@ -39,6 +41,7 @@ const INITIAL_STATE: SkilzState = {
   progress: [],
   discoveryComplete: false,
   dismissedSkillSlugs: [],
+  skillFeedback: {},
 }
 
 function uid(prefix = 'id') {
@@ -62,7 +65,9 @@ interface SkilzContextValue {
   setPlan: (items: PlanItem[]) => void
   togglePlanItem: (id: string) => void
   // challenges
-  recordAttempt: (attempt: Omit<ChallengeAttempt, 'id' | 'createdAt'>) => void
+  recordAttempt: (attempt: Omit<ChallengeAttempt, 'id' | 'createdAt'>) => string
+  addChallengeReflection: (attemptId: string, reflection: ChallengeReflection) => void
+  setSkillFeedback: (slug: string, feedback: SkillInterestFeedback) => void
   // lifecycle
   reset: () => void
 }
@@ -76,7 +81,14 @@ export function SkilzProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) setState({ ...INITIAL_STATE, ...JSON.parse(raw) })
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<SkilzState>
+        setState({
+          ...INITIAL_STATE,
+          ...parsed,
+          skillFeedback: parsed.skillFeedback ?? {},
+        })
+      }
     } catch {
       // ignore corrupt storage
     }
@@ -244,24 +256,88 @@ export function SkilzProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const recordAttempt = useCallback(
-    (attempt: Omit<ChallengeAttempt, 'id' | 'createdAt'>) => {
+    (attempt: Omit<ChallengeAttempt, 'id' | 'createdAt'>): string => {
+      const attemptId = uid('att')
       setState((s) => ({
         ...s,
         attempts: [
           ...s.attempts,
-          { ...attempt, id: uid('att'), createdAt: Date.now() },
+          { ...attempt, id: attemptId, createdAt: Date.now() },
         ],
         progress: [
           ...s.progress,
           {
             id: uid('pe'),
             date: Date.now(),
-            title: 'Completed a challenge',
+            title: 'Attempted a challenge',
             detail: `${attempt.summary}`,
             type: 'challenge',
           },
         ],
       }))
+      return attemptId
+    },
+    [],
+  )
+
+  const addChallengeReflection = useCallback(
+    (attemptId: string, reflection: ChallengeReflection) => {
+      setState((s) => ({
+        ...s,
+        attempts: s.attempts.map((a) =>
+          a.id === attemptId ? { ...a, reflection } : a,
+        ),
+        progress: [
+          ...s.progress,
+          {
+            id: uid('pe'),
+            date: Date.now(),
+            title: 'Reflected on a challenge',
+            detail: reflection.learned || 'Shared how the activity felt.',
+            type: 'challenge',
+          },
+        ],
+      }))
+    },
+    [],
+  )
+
+  const setSkillFeedback = useCallback(
+    (slug: string, feedback: SkillInterestFeedback) => {
+      setState((s) => {
+        if (feedback === 'not-for-me') {
+          return {
+            ...s,
+            skillFeedback: { ...s.skillFeedback, [slug]: feedback },
+            skills: s.skills.filter((sk) => sk.slug !== slug),
+            dismissedSkillSlugs: [...new Set([...s.dismissedSkillSlugs, slug])],
+            progress: [
+              ...s.progress,
+              {
+                id: uid('pe'),
+                date: Date.now(),
+                title: 'Area set aside',
+                detail: 'You marked an area as not for you — SKILZ will adjust recommendations.',
+                type: 'skill',
+              },
+            ],
+          }
+        }
+        return {
+          ...s,
+          skillFeedback: { ...s.skillFeedback, [slug]: feedback },
+          progress: [
+            ...s.progress,
+            {
+              id: uid('pe'),
+              date: Date.now(),
+              title: feedback === 'enjoyed' ? 'Enjoyed an area' : 'Wants to learn more',
+              detail: 'Your feedback helps SKILZ suggest better next steps.',
+              type: 'skill',
+            },
+          ],
+        }
+      })
     },
     [],
   )
@@ -289,6 +365,8 @@ export function SkilzProvider({ children }: { children: ReactNode }) {
       setPlan,
       togglePlanItem,
       recordAttempt,
+      addChallengeReflection,
+      setSkillFeedback,
       reset,
     }),
     [
@@ -304,6 +382,8 @@ export function SkilzProvider({ children }: { children: ReactNode }) {
       setPlan,
       togglePlanItem,
       recordAttempt,
+      addChallengeReflection,
+      setSkillFeedback,
       reset,
     ],
   )

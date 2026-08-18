@@ -28,6 +28,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Yes | Free API key from [Google AI Studio](https://aistudio.google.com/apikey) |
+| `NEXT_PUBLIC_AI_PROVIDER` | Yes (Vercel) | Provider label for deploy checklist — use `google` |
 | `DATABASE_URL` | Yes (for auth) | Neon PostgreSQL connection string |
 | `BREVO_API_KEY` | Yes (for email OTP) | Brevo API key for OTP email sign-in |
 | `BREVO_SENDER_EMAIL` | Yes (for email OTP) | Verified sender address in Brevo |
@@ -41,11 +42,29 @@ Guests receive **3 free AI sessions** (discover, analyze, challenge, or plan API
 Sign-in options:
 
 - **Google** — OAuth redirect flow (`/api/auth/google`)
-- **Email OTP** — one-time code sent via Brevo
+- **Email sign-up** — one-time verification code sent via Brevo (signup only)
+- **Email log-in** — enter your registered email; no OTP on return visits (session lasts until logout)
 
 ```bash
 # Push schema to Neon
 npm run db:push
+```
+
+### Push local `.env` to Vercel
+
+Link the project once, then push all keys from `.env` to **Production** and **Preview**:
+
+```bash
+npx vercel link
+npm run env:push
+npx vercel --prod   # redeploy so production picks up new vars
+```
+
+Or add individually:
+
+```bash
+vercel env add NEXT_PUBLIC_AI_PROVIDER production
+vercel env add DATABASE_URL production
 ```
 
 Set `DATABASE_URL` in `.env.local`. For email OTP, also set `BREVO_API_KEY` and `BREVO_SENDER_EMAIL`. For Google sign-in, create an OAuth 2.0 client and set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Add this authorized redirect URI:

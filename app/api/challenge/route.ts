@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { ANALYSIS_MODEL, SKILZ_PERSONA } from '@/lib/ai/models'
 import { assessChallengeEligibility, normalizeSpeechText } from '@/lib/ai/eligibility'
 import { requireAiAccess } from '@/lib/auth/guard'
+import { aiErrorMessage, withAiRetry } from '@/lib/ai/with-ai-retry'
 
 export const maxDuration = 30
 
@@ -56,24 +57,26 @@ Be kind but real. Do not inflate. Never claim the skill is now "proven".
 If the response is too vague to evaluate fairly, say so in improvements and keep confidence low.`
 
   try {
-    const { output } = await generateText({
-      model: ANALYSIS_MODEL,
-      instructions,
-      prompt: `Their response:\n\n"""${cleaned}"""`,
-      output: Output.object({
-        schema: z.object({
-          strengths: z.array(z.string()).min(1).max(4),
-          improvements: z.array(z.string()).min(1).max(3),
-          summary: z.string(),
+    const { output } = await withAiRetry(() =>
+      generateText({
+        model: ANALYSIS_MODEL,
+        instructions,
+        prompt: `Their response:\n\n"""${cleaned}"""`,
+        output: Output.object({
+          schema: z.object({
+            strengths: z.array(z.string()).min(1).max(4),
+            improvements: z.array(z.string()).min(1).max(3),
+            summary: z.string(),
+          }),
         }),
       }),
-    })
+    )
 
     return Response.json(output)
   } catch (err) {
     console.error('[skilz] challenge route error:', err)
     return Response.json(
-      { error: 'Could not evaluate the challenge.' },
+      { error: aiErrorMessage(err) },
       { status: 502 },
     )
   }

@@ -53,7 +53,7 @@ export default function ProgressPage() {
       <header>
         <h1 className="text-2xl font-bold md:text-3xl">Progress</h1>
         <p className="mt-1 text-muted-foreground">
-          Your growth journey at a glance.
+          Interest discovered → challenge tried → reflection → updated recommendations.
         </p>
       </header>
 
@@ -77,12 +77,7 @@ export default function ProgressPage() {
 
       <section className="rounded-2xl border border-border bg-card p-5">
         <h2 className="font-display text-base font-bold">Journey</h2>
-        <JourneyStrip
-          className="mt-5"
-          discoveryComplete={discoveryComplete}
-          hasChallenge={attempts.length > 0}
-          hasPlan={plan.length > 0}
-        />
+        <JourneyStrip className="mt-5" state={state} />
       </section>
 
       <section>

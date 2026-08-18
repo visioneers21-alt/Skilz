@@ -13,7 +13,8 @@ import { useAuth } from '@/lib/auth/auth-context'
 import { useHandleAuthRequired } from '@/lib/auth/use-handle-auth-required'
 import { suggestCareerPaths, isCareerExplorer } from '@/lib/career/paths'
 import { pickFocusSkill } from '@/lib/recommendations/next-steps'
-import { challengeForSkill } from '@/lib/data/seed'
+import { challengeForSkill, challengeHref } from '@/lib/challenges/catalog'
+import { WhyRecommendation } from '@/components/skilz/why-recommendation'
 import { useEffect, useState } from 'react'
 
 function slugify(name: string) {
@@ -44,7 +45,7 @@ export default function DiscoveryResultsPage() {
   const exploring = skills.filter((s) => s.category === 'exploring')
   const careerPaths = isCareerExplorer(profile.goal) ? suggestCareerPaths(skills) : []
   const focusSkill = pickFocusSkill(state)
-  const focusChallenge = focusSkill ? challengeForSkill(focusSkill.slug) : null
+  const focusChallenge = focusSkill ? challengeForSkill(focusSkill.slug, focusSkill.name) : null
 
   async function buildPlan() {
     setBuildingPlan(true)
@@ -87,11 +88,11 @@ export default function DiscoveryResultsPage() {
           Discovery complete
         </span>
         <h1 className="mt-4 text-balance text-2xl font-bold md:text-3xl">
-          Here&apos;s what stood out from your conversation
+          Your potential profile
         </h1>
         <p className="mx-auto mt-3 max-w-lg text-pretty text-sm leading-relaxed text-muted-foreground md:text-base">
-          These are hypotheses grounded in what you said — not personality labels.
-          Disagree with any? Remove it. Agree? Validate it with a quick challenge.
+          These are areas of <strong className="font-medium text-foreground">potential</strong> from your discovery answers — not fixed labels.
+          Try mini-challenges to test what fits. Mark anything that isn&apos;t for you.
         </p>
         <div className="mt-4 flex justify-center">
           <SkillsSnapshotButton profile={profile} skills={skills} />
@@ -103,6 +104,7 @@ export default function DiscoveryResultsPage() {
           <h2 className="font-display text-sm font-bold uppercase tracking-wide text-muted-foreground">
             Strong potential
           </h2>
+          <p className="mt-1 text-xs text-muted-foreground">Several answers pointed here — worth testing with a challenge.</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {strong.map((skill) => (
               <SkillCard key={skill.id} skill={skill} />
@@ -137,13 +139,21 @@ export default function DiscoveryResultsPage() {
         </section>
       )}
 
+      {strong.length > 0 && (
+        <section className="space-y-3">
+          {strong.slice(0, 2).map((skill) => (
+            <WhyRecommendation key={skill.id} skill={skill} profileInterests={profile.interests} state={state} />
+          ))}
+        </section>
+      )}
+
       {careerPaths.length > 0 && <CareerPathsSection paths={careerPaths} />}
 
       <section className="rounded-3xl border border-border bg-card p-6 md:p-8">
         <h2 className="font-display text-lg font-bold">What&apos;s next?</h2>
         <p className="mt-2 max-w-md text-sm text-muted-foreground">
           {focusChallenge && focusSkill
-            ? `Best move: validate "${focusSkill.name}" with "${focusChallenge.title}" — real proof beats guessing.`
+            ? `Best next step: try a mini-challenge for "${focusSkill.name}" — explore whether this area fits you.`
             : 'Explore your skills, export a snapshot, or build a plan around your strengths.'}
         </p>
         {planError && (
@@ -154,9 +164,9 @@ export default function DiscoveryResultsPage() {
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           {focusChallenge && (
             <Button asChild size="lg" className="flex-1">
-              <Link href={`/challenge/${focusChallenge.slug}`}>
+              <Link href={challengeHref(focusChallenge.slug, focusSkill!.slug)}>
                 <Trophy className="size-4" />
-                Validate {focusSkill?.name}
+                Try {focusSkill?.name}
               </Link>
             </Button>
           )}

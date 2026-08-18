@@ -22,9 +22,9 @@ const jakarta = Plus_Jakarta_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'SKILZ — Discover what you\u2019re capable of',
+  title: 'SKILZ — Discover your potential · Sierra Leone',
   description:
-    'SKILZ is a personal skill planner that helps you discover your strengths, validate your abilities through practical challenges, and build a personalized path for growth.',
+    'An AI-assisted talent and career exploration platform for young people in Sierra Leone. Discover areas of potential, test interests through challenges, and explore realistic development pathways.',
   applicationName: 'SKILZ',
 }
 

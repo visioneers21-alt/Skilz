@@ -9,8 +9,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { GoogleSignInButton } from '@/components/skilz/google-sign-in-button'
-import { GUEST_TRY_LIMIT, OTP_RESEND_COOLDOWN_MS } from '@/lib/auth/constants'
+import { GUEST_TRY_LIMIT, OTP_LENGTH, OTP_RESEND_COOLDOWN_MS } from '@/lib/auth/constants'
 import { SendOtpError, useAuth } from '@/lib/auth/auth-context'
+import { OtpInput } from '@/components/skilz/otp-input'
 
 type AuthMode = 'login' | 'signup'
 
@@ -36,8 +37,8 @@ const COPY: Record<
 > = {
   login: {
     title: 'Welcome back',
-    subtitle: 'Already signed in? You\'ll go straight to your dashboard. New here? We\'ll send a one-time code.',
-    submit: 'Send sign-in code',
+    subtitle: 'Enter the email you used to sign up. No verification code needed.',
+    submit: 'Log in',
     alternate: "Don't have an account?",
     alternateHref: '/signup',
     redirect: '/dashboard',
@@ -77,7 +78,7 @@ function resetToEmailStep(setters: {
 
 export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProps) {
   const searchParams = useSearchParams()
-  const { sendOtp, verifyOtp, triesRemaining, authenticated, loading: authLoading } = useAuth()
+  const { sendOtp, loginWithEmail, verifyOtp, triesRemaining, authenticated, loading: authLoading } = useAuth()
   const copy = COPY[mode]
 
   const [email, setEmail] = useState('')
@@ -165,6 +166,19 @@ export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProp
 
   async function handleSendOtp(e: React.FormEvent) {
     e.preventDefault()
+    if (mode === 'login') {
+      setLoading(true)
+      setError(null)
+      try {
+        await loginWithEmail(email.trim())
+        onSuccess?.()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not log in')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
     await dispatchOtp(email)
   }
 
@@ -216,7 +230,7 @@ export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProp
     <div className="w-full max-w-md">
       <h1 className="text-2xl font-bold md:text-3xl">{copy.title}</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        {step === 'code'
+        {mode === 'signup' && step === 'code'
           ? `Enter the 6-digit code sent to ${email || 'your email'}.`
           : copy.subtitle}
       </p>
@@ -229,7 +243,7 @@ export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProp
         </p>
       )}
 
-      {sent && step === 'code' && !resendNotice && (
+      {mode === 'signup' && sent && step === 'code' && !resendNotice && (
         <p className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
           Check your inbox at <span className="font-medium">{email}</span> for a 6-digit code.
         </p>
@@ -247,7 +261,7 @@ export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProp
         </p>
       )}
 
-      {step === 'email' ? (
+      {step === 'email' || mode === 'login' ? (
         <div className="mt-6 space-y-4">
           {googleEnabled && (
             <>
@@ -287,18 +301,21 @@ export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProp
           <form onSubmit={handleVerify} className="space-y-4">
             <div>
               <Label htmlFor="auth-code">Verification code</Label>
-              <Input
-                id="auth-code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                required
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="123456"
-                className="mt-2 h-11 text-center text-lg tracking-[0.3em]"
-              />
+              <div className="mt-3">
+                <OtpInput
+                  id="auth-code"
+                  value={code}
+                  onChange={setCode}
+                  disabled={loading}
+                  autoFocus
+                />
+              </div>
             </div>
-            <Button type="submit" className="h-11 w-full" disabled={loading || code.length < 4}>
+            <Button
+              type="submit"
+              className="h-11 w-full"
+              disabled={loading || code.length < OTP_LENGTH}
+            >
               {loading ? <Loader2 className="size-4 animate-spin" /> : 'Verify and continue'}
             </Button>
           </form>
