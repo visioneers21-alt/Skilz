@@ -12,7 +12,7 @@ export function useHandleAuthRequired() {
       if (err instanceof AuthRequiredError) {
         await refreshSession()
         openAuthModal()
-        return 'Sign in to continue using SKILZ.'
+        return 'Create an account to see your results and continue.'
       }
       return fallbackMessage
     },

@@ -1,16 +1,16 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Rocket, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { AuthForm } from "@/components/skilz/auth-form"
 import { ChatSessionHeader } from "@/components/skilz/chat-session-header"
 import { DiscoveryCelebration } from "@/components/skilz/discovery-celebration"
 import { DiscoveryChapterIntro } from "@/components/skilz/discovery-chapter-intro"
 import { DiscoveryChapterProgress } from "@/components/skilz/discovery-chapter-progress"
 import { DiscoveryMascot } from "@/components/skilz/discovery-mascot"
 import { DiscoveryScenarioPicker } from "@/components/skilz/discovery-scenario-picker"
-import { DiscoveryStickerBook } from "@/components/skilz/discovery-sticker-book"
 import { SkillAnalysisService } from "@/lib/ai/services"
 import { EligibilityError } from "@/lib/ai/eligibility"
 import {
@@ -28,6 +28,11 @@ import {
   isDiscoveryComplete,
   type DiscoveryEngineState,
 } from "@/lib/discovery/engine"
+import {
+  clearPendingDiscovery,
+  loadPendingDiscovery,
+  savePendingDiscovery,
+} from "@/lib/discovery/pending"
 import {
   getIntroLines,
   getMilestoneMessage,
@@ -66,7 +71,7 @@ export function DiscoverySession() {
   const router = useRouter()
   const { state, setConversation, saveSkills } = useSkilz()
   const { profile } = state
-  const { refreshSession } = useAuth()
+  const { authenticated, loading: authLoading, refreshSession } = useAuth()
   const handleAuthRequired = useHandleAuthRequired()
 
   const [started, setStarted] = useState(false)
@@ -74,6 +79,7 @@ export function DiscoverySession() {
     createDiscoveryState({ interests: profile.interests }),
   )
   const [analyzing, setAnalyzing] = useState(false)
+  const [awaitingSignup, setAwaitingSignup] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -81,8 +87,8 @@ export function DiscoverySession() {
   const [mascotMood, setMascotMood] = useState<"idle" | "excited" | "thinking" | "celebrate">("idle")
   const [questionKey, setQuestionKey] = useState(0)
   const [chapterIntroAt, setChapterIntroAt] = useState<number | null>(null)
-  const [finishing, setFinishing] = useState(false)
-  const autoAnalyzeStarted = useRef(false)
+  const analyzeStarted = useRef(false)
+  const restoredPending = useRef(false)
 
   const question = getCurrentQuestion(engine)
   const complete = isDiscoveryComplete(engine)
@@ -94,6 +100,36 @@ export function DiscoverySession() {
   const q20Labels = question?.id === "q20-identity" ? question.options.map((o) => o.label) : undefined
   const questionUi = question ? getQuestionUi(question.id, q20Labels) : null
 
+  const runAnalysis = useCallback(
+    async (engineState: DiscoveryEngineState = engine) => {
+      if (!isDiscoveryComplete(engineState) || analyzeStarted.current) return
+      analyzeStarted.current = true
+      setAnalyzing(true)
+      setAwaitingSignup(false)
+      setError(null)
+
+      try {
+        const transcript = buildDiscoveryTranscript(engineState, { name: profile.name })
+        const skills = await SkillAnalysisService.analyze(transcript, {
+          structured: true,
+        })
+        saveSkills(skills)
+        clearPendingDiscovery()
+        void refreshSession()
+        router.push("/discover/results")
+      } catch (err) {
+        setAnalyzing(false)
+        analyzeStarted.current = false
+        if (err instanceof EligibilityError) {
+          setError(err.message)
+          return
+        }
+        setError(await handleAuthRequired(err, "We couldn't analyze your answers. Please try again."))
+      }
+    },
+    [engine, profile.name, saveSkills, router, refreshSession, handleAuthRequired],
+  )
+
   useEffect(() => {
     setConversation(engineToMessages(engine, profile.name))
   }, [engine, profile.name, setConversation])
@@ -104,10 +140,30 @@ export function DiscoverySession() {
     return () => window.clearTimeout(t)
   }, [celebration])
 
+  useEffect(() => {
+    if (restoredPending.current || authLoading) return
+    const saved = loadPendingDiscovery()
+    if (!saved || !isDiscoveryComplete(saved)) return
+    restoredPending.current = true
+    setEngine(saved)
+    setStarted(true)
+    if (authenticated) {
+      void runAnalysis(saved)
+    } else {
+      setAwaitingSignup(true)
+    }
+  }, [authLoading, authenticated, runAnalysis])
+
+  useEffect(() => {
+    if (awaitingSignup && authenticated && !authLoading) {
+      void runAnalysis(engine)
+    }
+  }, [awaitingSignup, authenticated, authLoading, engine, runAnalysis])
+
   const progressPct = (progress.answered / DISCOVERY_QUESTION_COUNT) * 100
 
   const mascotMessage = useMemo(() => {
-    if (complete) return "You did it! Ready to see your potential?"
+    if (complete) return "You did it! Create an account to see your potential."
     if (pending) return "Got it…"
     if (questionUi) return questionUi.mascotLine
     return "Let's explore what fits you."
@@ -134,6 +190,7 @@ export function DiscoverySession() {
 
       window.setTimeout(() => {
         let nextIndex = engine.questionIndex
+        let nextEngine = engine
         setEngine((prev) => {
           const q = getCurrentQuestion(prev)
           if (!q) return prev
@@ -141,6 +198,7 @@ export function DiscoverySession() {
           if (!opt) return prev
           const next = applyDiscoveryAnswer(prev, q, opt)
           nextIndex = next.questionIndex
+          nextEngine = next
           return next
         })
 
@@ -157,13 +215,20 @@ export function DiscoverySession() {
         if (nextIndex < DISCOVERY_QUESTION_COUNT && shouldShowChapterIntro(nextIndex)) {
           setChapterIntroAt(nextIndex)
         } else if (nextIndex >= DISCOVERY_QUESTION_COUNT) {
-          setFinishing(true)
+          window.setTimeout(() => {
+            savePendingDiscovery(nextEngine)
+            if (authenticated) {
+              void runAnalysis(nextEngine)
+            } else {
+              setAwaitingSignup(true)
+            }
+          }, 400)
         }
 
         window.setTimeout(() => setMascotMood("idle"), 600)
       }, 280)
     },
-    [question, pending, complete, showingChapterIntro, engine.questionIndex],
+    [question, pending, complete, showingChapterIntro, engine, authenticated, runAnalysis],
   )
 
   useEffect(() => {
@@ -186,47 +251,16 @@ export function DiscoverySession() {
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [started, complete, showingChapterIntro, pending, question, handleSelect])
 
-  const finish = useCallback(async () => {
-    if (!complete) return
-    setAnalyzing(true)
-    setError(null)
-    try {
-      const transcript = buildDiscoveryTranscript(engine, { name: profile.name })
-      const skills = await SkillAnalysisService.analyze(transcript, {
-        structured: true,
-      })
-      saveSkills(skills)
-      void refreshSession()
-      router.push("/discover/results")
-    } catch (err) {
-      setAnalyzing(false)
-      setFinishing(false)
-      autoAnalyzeStarted.current = false
-      if (err instanceof EligibilityError) {
-        setError(err.message)
-        return
-      }
-      setError(await handleAuthRequired(err, "We couldn't analyze your answers. Please try again."))
-    }
-  }, [engine, profile.name, saveSkills, router, refreshSession, handleAuthRequired, complete])
-
-  useEffect(() => {
-    if (!finishing || autoAnalyzeStarted.current) return
-    autoAnalyzeStarted.current = true
-    void finish()
-  }, [finishing, finish])
-
   const handleEnd = useCallback(() => {
-    if (complete) void finish()
-    else router.push("/dashboard")
-  }, [complete, finish, router])
+    router.push("/dashboard")
+  }, [router])
 
   const handleStart = () => {
     setStarted(true)
     setChapterIntroAt(0)
   }
 
-  if (analyzing || finishing) {
+  if (analyzing) {
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6 text-center px-4">
         <DiscoveryMascot mood="excited" size="lg" message="Reading your answers and finding patterns…" />
@@ -239,9 +273,34 @@ export function DiscoverySession() {
         <div className="space-y-2">
           <h2 className="font-display text-xl font-bold">Finding your top potential areas</h2>
           <p className="max-w-xs text-pretty text-sm text-muted-foreground">
-            SKILZ is analyzing your full discovery journey — looking for patterns across all your choices, not just individual matches.
+            SKILZ is analyzing your full discovery journey — looking for patterns across all your choices.
           </p>
         </div>
+      </div>
+    )
+  }
+
+  if (awaitingSignup && complete) {
+    return (
+      <div className="mx-auto max-w-md space-y-6 px-1">
+        <div className="rounded-3xl border border-primary/20 bg-gradient-to-b from-primary/10 via-background to-background p-6 text-center sm:p-8">
+          <DiscoveryMascot mood="celebrate" message="Journey complete!" />
+          <h2 className="mt-4 font-display text-2xl font-bold">Create an account to see your results</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Your discovery answers are saved. Sign up free to unlock your potential profile — areas worth
+            exploring based on what you chose.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <Suspense fallback={null}>
+            <AuthForm mode="signup" showGuestHint={false} redirectTo="/discover" />
+          </Suspense>
+        </div>
+        {error && (
+          <p role="alert" className="text-center text-sm text-destructive">
+            {error}
+          </p>
+        )}
       </div>
     )
   }
@@ -260,9 +319,12 @@ export function DiscoverySession() {
               </li>
             ))}
           </ul>
+          <p className="mt-4 text-xs text-muted-foreground">
+            Try the journey free — create an account at the end to see your potential profile.
+          </p>
           <Button
             size="lg"
-            className="mt-8 h-12 w-full rounded-2xl text-base font-bold sm:w-auto sm:px-10"
+            className="mt-6 h-12 w-full rounded-2xl text-base font-bold sm:w-auto sm:px-10"
             onClick={handleStart}
           >
             <Rocket className="mr-2 size-5" />
@@ -301,7 +363,7 @@ export function DiscoverySession() {
         }
         statusMessage={
           complete
-            ? "Journey complete — see your top matches below."
+            ? "Almost there — create an account to see your results."
             : progress.answered === 0
               ? "Read the moment, then tap what feels most like you."
               : `${progress.activeSkillCount} areas still in the running`
@@ -344,43 +406,16 @@ export function DiscoverySession() {
             </div>
           </section>
         )}
-
-        {complete && (
-          <section className="rounded-3xl border border-primary/15 bg-card/80 p-6 text-center">
-            <DiscoveryMascot mood="celebrate" message="Journey complete!" />
-            <p className="mt-3 text-sm text-muted-foreground">
-              Starting AI analysis of your answers…
-            </p>
-          </section>
-        )}
-
-        {complete && !finishing && (
-          <DiscoveryStickerBook answers={engine.answers} defaultOpen={false} />
-        )}
       </div>
 
-      {error && (
+      {error && !awaitingSignup && (
         <div
           role="alert"
-          className="mt-3 space-y-3 rounded-xl border border-destructive/25 bg-destructive/5 px-3.5 py-2.5 text-xs text-destructive"
+          className="mt-3 rounded-xl border border-destructive/25 bg-destructive/5 px-3.5 py-2.5 text-xs text-destructive"
         >
-          <p>{error}</p>
-          {complete && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full"
-              onClick={() => {
-                autoAnalyzeStarted.current = false
-                setFinishing(true)
-              }}
-            >
-              Try analysis again
-            </Button>
-          )}
+          {error}
         </div>
       )}
-
     </div>
   )
 }

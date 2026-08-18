@@ -45,7 +45,7 @@ const COPY: Record<
   },
   signup: {
     title: 'Create your account',
-    subtitle: `Sign up with Google or email. Start with ${GUEST_TRY_LIMIT} free AI sessions.`,
+    subtitle: 'Sign up free to see your potential profile and save your progress.',
     submit: 'Send verification code',
     alternate: 'Already have an account?',
     alternateHref: '/login',
@@ -57,6 +57,8 @@ interface AuthFormProps {
   mode: AuthMode
   onSuccess?: () => void
   showGuestHint?: boolean
+  /** Override post-auth redirect for OAuth (e.g. stay on discovery). */
+  redirectTo?: string
 }
 
 function resetToEmailStep(setters: {
@@ -76,10 +78,11 @@ function resetToEmailStep(setters: {
   if (setters.clearEmail && setters.setEmail) setters.setEmail('')
 }
 
-export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProps) {
+export function AuthForm({ mode, onSuccess, showGuestHint = true, redirectTo }: AuthFormProps) {
   const searchParams = useSearchParams()
   const { sendOtp, loginWithEmail, verifyOtp, triesRemaining, authenticated, loading: authLoading } = useAuth()
   const copy = COPY[mode]
+  const afterAuthRedirect = redirectTo ?? copy.redirect
 
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
@@ -265,7 +268,7 @@ export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProp
         <div className="mt-6 space-y-4">
           {googleEnabled && (
             <>
-              <GoogleSignInButton redirect={copy.redirect} />
+              <GoogleSignInButton redirect={afterAuthRedirect} />
               <div className="relative py-1">
                 <Separator />
                 <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-3 text-xs text-muted-foreground">
@@ -341,7 +344,7 @@ export function AuthForm({ mode, onSuccess, showGuestHint = true }: AuthFormProp
 
               {googleEnabled && (
                 <GoogleSignInButton
-                  redirect={copy.redirect}
+                  redirect={afterAuthRedirect}
                   label="Continue with Google instead"
                 />
               )}

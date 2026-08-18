@@ -1,5 +1,5 @@
-import { DesktopNav, MobileHeader, MobileNav } from '@/components/skilz/app-nav'
 import { OnboardGuard } from '@/components/skilz/onboard-guard'
+import { AppShell } from '@/components/skilz/app-shell'
 
 export default function AppLayout({
   children,
@@ -8,14 +8,7 @@ export default function AppLayout({
 }) {
   return (
     <OnboardGuard>
-      <div className="min-h-dvh bg-background">
-        <DesktopNav />
-        <MobileHeader />
-        <div className="mx-auto w-full max-w-5xl px-4 pb-24 pt-5 md:px-6 md:pb-12">
-          {children}
-        </div>
-        <MobileNav />
-      </div>
+      <AppShell>{children}</AppShell>
     </OnboardGuard>
   )
 }

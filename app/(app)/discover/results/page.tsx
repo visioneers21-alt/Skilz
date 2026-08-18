@@ -29,16 +29,21 @@ export default function DiscoveryResultsPage() {
   const router = useRouter()
   const { state, setPlan } = useSkilz()
   const { profile, skills } = state
-  const { refreshSession } = useAuth()
+  const { authenticated, loading: authLoading, refreshSession } = useAuth()
   const handleAuthRequired = useHandleAuthRequired()
   const [buildingPlan, setBuildingPlan] = useState(false)
   const [planError, setPlanError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (authLoading) return
+    if (!authenticated) {
+      router.replace('/discover')
+      return
+    }
     if (skills.length === 0) router.replace('/discover')
-  }, [skills.length, router])
+  }, [skills.length, router, authenticated, authLoading])
 
-  if (skills.length === 0) return null
+  if (authLoading || !authenticated || skills.length === 0) return null
 
   const strong = skills.filter((s) => s.category === 'strong')
   const developing = skills.filter((s) => s.category === 'developing')

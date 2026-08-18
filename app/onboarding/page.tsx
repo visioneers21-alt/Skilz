@@ -47,7 +47,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (hydrated && state.profile.onboarded && !isEdit) {
-      router.replace('/dashboard')
+      router.replace('/discover')
     }
   }, [hydrated, state.profile.onboarded, isEdit, router])
 
@@ -74,7 +74,7 @@ export default function OnboardingPage() {
     }
     if (isEdit) updateProfile(profile)
     else completeOnboarding(profile)
-    router.push('/profile')
+    router.push('/discover')
   }
 
   return (

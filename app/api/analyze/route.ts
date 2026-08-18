@@ -8,7 +8,7 @@ import {
   normalizeSpeechText,
   refineSkillHypotheses,
 } from '@/lib/ai/eligibility'
-import { requireAiAccess } from '@/lib/auth/guard'
+import { requireAuthenticatedUser } from '@/lib/auth/guard'
 import { aiErrorMessage, withAiRetry } from '@/lib/ai/with-ai-retry'
 
 export const maxDuration = 60
@@ -53,7 +53,7 @@ const SkillSchema = z.object({
 })
 
 export async function POST(req: Request) {
-  const denied = await requireAiAccess()
+  const denied = await requireAuthenticatedUser()
   if (denied) return denied
 
   let body: unknown

@@ -29,7 +29,7 @@ export function AuthModal() {
           Close
         </button>
         <Suspense fallback={null}>
-          <AuthForm mode="login" onSuccess={closeAuthModal} showGuestHint />
+          <AuthForm mode="signup" onSuccess={closeAuthModal} showGuestHint={false} />
         </Suspense>
       </div>
     </div>

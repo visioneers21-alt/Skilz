@@ -1,9 +1,9 @@
-import { spawnSync } from 'node:child_process'
 import { createSerwistRoute } from '@serwist/turbopack'
 
 const revision =
-  spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf-8' }).stdout?.trim() ||
-  crypto.randomUUID()
+  process.env.VERCEL_GIT_COMMIT_SHA?.trim() ||
+  process.env.VERCEL_DEPLOYMENT_ID?.trim() ||
+  'local-dev'
 
 export const { dynamic, dynamicParams, revalidate, generateStaticParams, GET } =
   createSerwistRoute({

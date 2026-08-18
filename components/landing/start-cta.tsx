@@ -13,9 +13,9 @@ export function StartCta({
   className?: string
 }) {
   const { state, hydrated } = useSkilz()
-  const href = hydrated && state.profile.onboarded ? '/dashboard' : '/onboarding'
+  const href = hydrated && state.profile.onboarded ? '/discover' : '/onboarding'
   const label =
-    hydrated && state.profile.onboarded ? 'Continue your journey' : 'Start Discovering'
+    hydrated && state.profile.onboarded ? 'Try SKILZ' : 'Start Discovering'
 
   return (
     <Button asChild size={size} className={className}>
