@@ -26,10 +26,10 @@ export const CHEER_MESSAGES = [
 ] as const
 
 export const MILESTONE_MESSAGES: Record<number, string> = {
-  5: "You're ¼ of the way — the skill map is getting clearer!",
-  10: 'Halfway hero! Your top skills are taking shape.',
-  15: 'Almost there — just 5 more picks!',
-  20: 'Quest complete! Time to reveal your superpowers.',
+  5: 'Chapter 1 done — nice work!',
+  10: 'Halfway through your journey!',
+  15: 'One chapter left — almost there!',
+  20: 'Journey complete — time to see your potential!',
 }
 
 export const QUESTION_UI: Record<string, QuestionUi> = {
@@ -329,12 +329,13 @@ export function getIntroLines(name?: string): {
 } {
   const who = name ? `${name}, ` : ''
   return {
-    headline: `${who}ready for your discovery quest?`,
-    subline: 'What am I good at, what do I enjoy, and what could I explore next? 20 quick questions about school life, clubs, and how you solve problems.',
+    headline: `${who}ready to explore your potential?`,
+    subline:
+      'Four short story chapters about school, community, and what energizes you — tap what feels most like you.',
     steps: [
-      { emoji: '🗺️', text: '20 stops — works even with limited internet' },
-      { emoji: '🔮', text: '150 areas narrow as you choose' },
-      { emoji: '🏅', text: 'See potential to explore — not a final label' },
+      { emoji: '📖', text: '4 chapters · about 5 minutes · works with limited internet' },
+      { emoji: '👆', text: 'Tap what feels like you — not a test, no wrong answers' },
+      { emoji: '✨', text: 'See areas of potential to explore — not a final label' },
     ],
   }
 }

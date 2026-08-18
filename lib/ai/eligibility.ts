@@ -146,9 +146,24 @@ export interface AnalyzedSkill {
   developmentAreas: string[]
 }
 
+/** Trim model output to product limits so strict schema validation never 502s. */
+export function normalizeAnalyzedSkill(skill: AnalyzedSkill): AnalyzedSkill {
+  const evidence = skill.evidence.map((e) => e.trim()).filter(Boolean).slice(0, 4)
+  let developmentAreas = skill.developmentAreas.map((d) => d.trim()).filter(Boolean).slice(0, 4)
+  if (developmentAreas.length < 2) {
+    developmentAreas = [...developmentAreas, 'Continued practice', 'Real-world projects'].slice(0, 4)
+  }
+  return {
+    ...skill,
+    evidence: evidence.length > 0 ? evidence : ['Patterns across your discovery answers'],
+    developmentAreas,
+  }
+}
+
 /** Drop weak hypotheses and downgrade overconfident labels lacking evidence. */
 export function refineSkillHypotheses(skills: AnalyzedSkill[]): AnalyzedSkill[] {
   return skills
+    .map(normalizeAnalyzedSkill)
     .filter((s) => s.confidenceScore >= MIN_CONFIDENCE_SCORE)
     .map((s) => {
       let statusLabel = s.statusLabel

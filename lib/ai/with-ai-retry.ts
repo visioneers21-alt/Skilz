@@ -6,6 +6,9 @@ const BASE_DELAY_MS = 800
 function isRetryable(err: unknown): boolean {
   if (!(err instanceof Error)) return true
   const msg = err.message.toLowerCase()
+  if (msg.includes('type validation failed') || msg.includes('validation failed')) {
+    return false
+  }
   return (
     msg.includes('429') ||
     msg.includes('503') ||

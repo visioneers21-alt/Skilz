@@ -81,7 +81,7 @@ export default function DashboardPage() {
           ) : (
             <div className="mt-4 rounded-xl border border-dashed border-border p-5 text-center">
               <p className="text-sm text-muted-foreground">
-                Complete the 20-question discovery quest to see your potential profile.
+                Complete the discovery journey to see your potential profile.
               </p>
               <Button asChild variant="outline" size="sm" className="mt-3">
                 <Link href="/discover">Start discovery</Link>

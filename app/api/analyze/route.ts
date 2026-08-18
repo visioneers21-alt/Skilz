@@ -11,7 +11,7 @@ import {
 import { requireAiAccess } from '@/lib/auth/guard'
 import { aiErrorMessage, withAiRetry } from '@/lib/ai/with-ai-retry'
 
-export const maxDuration = 30
+export const maxDuration = 60
 
 const RequestSchema = z.object({
   transcript: z.array(
@@ -20,12 +20,13 @@ const RequestSchema = z.object({
       content: z.string(),
     }),
   ),
+  /** Optional hints only — AI must verify against the full transcript. */
   candidateSlugs: z.array(z.string()).optional(),
   structured: z.boolean().optional(),
 })
 
 const SkillSchema = z.object({
-  name: z.string().describe('Human-readable skill name, Title Case.'),
+  name: z.string().describe('Human-readable skill or potential area name, Title Case.'),
   statusLabel: z.enum([
     'Strong potential',
     'Developing',
@@ -42,13 +43,13 @@ const SkillSchema = z.object({
   evidence: z
     .array(z.string())
     .min(1)
-    .max(4)
-    .describe('Short concrete signals paraphrased from the conversation.'),
+    .max(12)
+    .describe('Up to 4 short concrete signals paraphrased from the conversation.'),
   developmentAreas: z
     .array(z.string())
-    .min(2)
-    .max(4)
-    .describe('Specific sub-skills to grow, e.g. "Public speaking".'),
+    .min(1)
+    .max(8)
+    .describe('2–4 specific sub-skills or activities to grow.'),
 })
 
 export async function POST(req: Request) {
@@ -98,42 +99,43 @@ export async function POST(req: Request) {
           .filter(Boolean)
       : []
 
-  const vocabulary =
-    candidateSkills.length > 0
-      ? candidateSkills.map((s) => s.name)
-      : FULL_SKILL_CATALOG.map((s) => s.name)
+  const vocabulary = FULL_SKILL_CATALOG.map((s) => s.name)
 
-  const candidateBlock =
+  const hintBlock =
     candidateSkills.length > 0
-      ? `\nRanked candidate skills from the person's ${userTurns} discovery answers (prioritize these):\n${candidateSkills.map((s, i) => `${i + 1}. ${s.name} (${SKILL_DOMAINS[s.domain]})`).join('\n')}\n`
+      ? `\nOptional unverified hints from a scoring engine (do NOT copy blindly — verify against the full transcript):\n${candidateSkills.map((s, i) => `${i + 1}. ${s.name} (${SKILL_DOMAINS[s.domain]})`).join('\n')}\n`
       : ''
 
   const instructions = `${SKILZ_PERSONA}
 
-Analyze the discovery Q&A transcript and identify 3 to 5 areas of POTENTIAL the person shows signs of. These are hypotheses to be tested, not diagnoses.
+Analyze the discovery Q&A transcript and identify 3 to 5 areas of POTENTIAL the person shows signs of. These are hypotheses to be tested through challenges and exploration — not diagnoses or career labels.
 The student may be a secondary-school learner in Sierra Leone exploring subjects, WAEC paths, clubs, and career directions.
-${candidateBlock}
+${hintBlock}
+How to analyze (important):
+- Read the FULL transcript and look for patterns across many answers — not one answer = one skill.
+- Synthesize themes: what they gravitate toward, how they solve problems, how they work with others, what energizes them, and what they want to be known for.
+- Weight consistency: skills supported by several different answers are stronger than a single pick.
+- Treat the final identity question as one signal among many, not the only signal.
+- Name results as areas of potential (e.g. "Project Management", "Public Speaking", "Engineering & Technology") using this vocabulary when it fits: ${vocabulary.slice(0, 50).join(', ')}${vocabulary.length > 50 ? `, and ${vocabulary.length - 50} more related skills` : ''}.
+- You may combine related signals into a broader area when that better reflects the person.
+
 Rules:
-- Prefer skill names from this vocabulary when they fit: ${vocabulary.slice(0, 40).join(', ')}${vocabulary.length > 40 ? `, and ${vocabulary.length - 40} more related skills` : ''}.
-- When candidate skills are listed above, choose primarily from that narrowed list unless answers clearly contradict it.
-- Every skill MUST be grounded in something the person actually chose or said. Never invent evidence.
-- Each evidence item must map to a specific answer or phrase from the transcript.
+- Every skill MUST be grounded in multiple concrete signals from what the person actually chose or said. Never invent evidence.
+- Pick the 3–4 strongest evidence items per skill (do not list every answer).
 - confidenceScore calibration:
-  * 0.75–1.0 = multiple clear, consistent signals across answers
-  * 0.5–0.74 = one strong answer plus supporting hints
+  * 0.75–1.0 = clear, consistent patterns across several answers
+  * 0.5–0.74 = one strong theme plus supporting hints
   * 0.35–0.49 = thin signal — use "Worth exploring" only
 - Order from strongest to weakest signal.
 - Only mark "Strong potential" when there are 2+ distinct concrete signals AND confidence >= 0.65.
-- Keep evidence items short (a few words each) and phrased as observations.
-- In reasoning, NEVER say "You are a [job title]". ALWAYS say "You show potential in…" or "Your responses suggest…".
-- Frame skills as areas to explore (e.g. "Engineering & Technology"), not fixed identities.`
+- In reasoning, NEVER say "You are a [job title]". ALWAYS say "You show potential in…" or "Your responses suggest…".`
 
   try {
     const { output } = await withAiRetry(() =>
       generateText({
         model: ANALYSIS_MODEL,
         instructions,
-        prompt: `Conversation transcript:\n\n${transcript}\n\nIdentify areas of potential (not final career labels).`,
+        prompt: `Discovery conversation transcript:\n\n${transcript}\n\nSynthesize patterns across ALL answers and identify 3–5 areas of potential (not final career labels).`,
         output: Output.object({
           schema: z.object({ skills: z.array(SkillSchema).min(3).max(5) }),
         }),

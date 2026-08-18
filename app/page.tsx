@@ -69,7 +69,7 @@ const STEPS = [
 
 const DEMO_STEPS = [
   'Uncertain about what fits them',
-  'Completes the 20-question discovery quest',
+  'Completes the guided discovery journey',
   'Sees areas of potential — not a fixed label',
   'Tries a practical mini-challenge',
   'Reflects: "I enjoyed this — I want to try more"',
@@ -138,7 +138,7 @@ export default function LandingPage() {
                       <Sparkles className="size-3.5" /> Discovery quest
                     </span>
                   </div>
-                  <div className="space-y-2 pt-3">
+                  {/* <div className="space-y-2 pt-3">
                     <ChatBubble side="ai">
                       🌟 After school, which activity feels most like YOU?
                     </ChatBubble>
@@ -148,7 +148,7 @@ export default function LandingPage() {
                     <ChatBubble side="ai">
                       You show strong potential in Engineering & Technology — try a challenge!
                     </ChatBubble>
-                  </div>
+                  </div> */}
                 </div>
               </div>
             </div>
@@ -187,7 +187,7 @@ export default function LandingPage() {
             </div>
             <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {[
-                { step: '1', label: 'Discover potential', detail: '20-question quest across interests & strengths' },
+                { step: '1', label: 'Discover potential', detail: 'A guided journey across school life, interests & strengths' },
                 { step: '2', label: 'Try practical activities', detail: 'Mini-challenges you can do at school or home' },
                 { step: '3', label: 'Receive feedback', detail: 'AI feedback plus your own reflection' },
                 { step: '4', label: 'Explore possibilities', detail: 'Career areas, clubs, starter projects' },
@@ -284,7 +284,7 @@ export default function LandingPage() {
                 Discover → test → understand → explore → develop
               </h2>
               <p className="mt-3 text-muted-foreground">
-                The structured 20-question assessment works without continuous AI chat — AI is used where it
+                The structured discovery journey works without continuous AI chat — AI is used where it
                 adds real value: analysis, challenge feedback, recommendations, and your development plan.
               </p>
             </div>

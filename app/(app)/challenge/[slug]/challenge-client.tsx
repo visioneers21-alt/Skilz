@@ -15,8 +15,12 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { ListeningOrb } from '@/components/skilz/listening-orb'
+import {
+  ChallengeResponseInput,
+  ChallengeWordCount,
+  isChallengeResponseEligible,
+} from '@/components/skilz/challenge-response-input'
 import { ChallengeReflectionForm } from '@/components/skilz/challenge-reflection'
 import { useVoice } from '@/lib/voice/use-voice'
 import { ChallengeEvaluationService, EligibilityError } from '@/lib/ai/services'
@@ -68,8 +72,14 @@ export default function ChallengePageClient() {
 
   const submit = useCallback(async () => {
     if (!challenge) return
-    const trimmed = response.trim()
+    const trimmed = (response.trim() || voice.liveText.trim())
     if (!trimmed) return
+
+    const eligibility = isChallengeResponseEligible(trimmed)
+    if (!eligibility.eligible) {
+      setError(eligibility.message)
+      return
+    }
 
     voice.stop()
     setPhase('evaluating')
@@ -118,7 +128,11 @@ export default function ChallengePageClient() {
     voice,
     refreshSession,
     handleAuthRequired,
+    voice.liveText,
   ])
+
+  const responseText = response.trim() || voice.liveText.trim()
+  const canSubmit = isChallengeResponseEligible(responseText).eligible
 
   if (!challenge) {
     return (
@@ -289,7 +303,7 @@ export default function ChallengePageClient() {
             >
               <Send className="size-5 text-primary" />
               <p className="mt-3 font-semibold">Type your answer</p>
-              <p className="mt-1 text-sm text-muted-foreground">Write at your own pace.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Write at your own pace — at least 25 words in your own words.</p>
             </button>
           </div>
         </div>
@@ -334,15 +348,12 @@ export default function ChallengePageClient() {
                   </>
                 )}
               </Button>
+              <ChallengeWordCount text={response.trim() || voice.liveText} />
             </div>
           ) : (
-            <Textarea
+            <ChallengeResponseInput
               value={response}
-              onChange={(e) => setResponse(e.target.value)}
-              placeholder="Share your response…"
-              rows={6}
-              className="resize-none text-base"
-              autoFocus
+              onChange={setResponse}
             />
           )}
 
@@ -355,7 +366,7 @@ export default function ChallengePageClient() {
           <Button
             size="lg"
             className="w-full"
-            disabled={!response.trim() && !voice.liveText.trim()}
+            disabled={!canSubmit}
             onClick={() => {
               const text = response.trim() || voice.liveText.trim()
               if (text) setResponse(text)
@@ -365,6 +376,11 @@ export default function ChallengePageClient() {
             Submit response
             <ArrowRight className="size-4" />
           </Button>
+          {!canSubmit && responseText.length > 0 && !error && (
+            <p className="text-center text-xs text-muted-foreground">
+              Give a fuller response (25+ words) so feedback is accurate.
+            </p>
+          )}
         </div>
       )}
     </div>

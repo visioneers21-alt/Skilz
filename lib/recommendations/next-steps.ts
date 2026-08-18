@@ -21,7 +21,7 @@ export function getPrimaryNextStep(state: SkilzState): NextStep {
       id: 'discover',
       title: 'Start your discovery quest',
       description:
-        'Answer 20 fun questions across interests, problem-solving, creativity, and more — SKILZ narrows 150+ areas to your best potential matches.',
+        'Four short chapters about school life, interests, and problem-solving — SKILZ narrows 150+ areas to your best potential matches.',
       href: '/discover',
       cta: 'Start discovery',
       kind: 'discover',
