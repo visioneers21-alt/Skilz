@@ -48,7 +48,7 @@ export const QUESTION_UI: Record<string, QuestionUi> = {
   'q2-help': {
     emoji: '🆘',
     title: 'What do friends ask YOU for?',
-    scene: 'When someone needs help, they come to you because…',
+    scene: 'At school, in your club, or in your community — when someone needs help, they come to you because…',
     mascotLine: 'There are no wrong answers — just pick what happens most!',
     options: {
       a: { emoji: '💬', title: 'Feelings & friend advice', detail: 'Good listener' },
@@ -84,7 +84,7 @@ export const QUESTION_UI: Record<string, QuestionUi> = {
   'q5-stuck': {
     emoji: '🤔',
     title: 'When you\'re stuck, you…',
-    scene: 'A hard level, tough homework, or tricky problem appears!',
+    scene: 'WAEC prep, a tough assignment, or a tricky problem appears!',
     mascotLine: 'What\'s your go-to move?',
     options: {
       a: { emoji: '🪜', title: 'Break it into tiny steps', detail: 'Step by step' },
@@ -330,7 +330,7 @@ export function getIntroLines(name?: string): {
   const who = name ? `${name}, ` : ''
   return {
     headline: `${who}ready for your discovery quest?`,
-    subline: '20 quick questions about school life, interests, and how you solve problems.',
+    subline: 'What am I good at, what do I enjoy, and what could I explore next? 20 quick questions about school life, clubs, and how you solve problems.',
     steps: [
       { emoji: '🗺️', text: '20 stops — works even with limited internet' },
       { emoji: '🔮', text: '150 areas narrow as you choose' },

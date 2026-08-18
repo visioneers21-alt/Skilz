@@ -138,7 +138,7 @@ export default function LandingPage() {
                       <Sparkles className="size-3.5" /> Discovery quest
                     </span>
                   </div>
-                  {/* <div className="space-y-2 pt-3">
+                  <div className="space-y-2 pt-3">
                     <ChatBubble side="ai">
                       🌟 After school, which activity feels most like YOU?
                     </ChatBubble>
@@ -146,9 +146,9 @@ export default function LandingPage() {
                       🔍 Fixing things — like when our generator stopped!
                     </ChatBubble>
                     <ChatBubble side="ai">
-                      Strong potential in Engineering & Technology — try a challenge!
+                      You show strong potential in Engineering & Technology — try a challenge!
                     </ChatBubble>
-                  </div> */}
+                  </div>
                 </div>
               </div>
             </div>
